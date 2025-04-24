@@ -32,7 +32,11 @@ async def create_detection(
         raise HTTPException(status_code=404, detail="Stream not found")
 
     # Process frame and perform detection
-    frame = detection_service.process_stream(camera.rtsp_url)
+    frame = detection_service.process_stream(
+        camera.rtsp_url,
+        camera_type=camera.camera_type,
+        device_id=camera.device_id
+    )
     if frame is None:
         raise HTTPException(status_code=400, detail="Could not process stream")
 

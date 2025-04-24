@@ -8,52 +8,45 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Switch,
-  FormControlLabel,
-  TextField,
+  Slider,
   Button,
-  SelectChangeEvent,
 } from '@mui/material';
-import { useQuery } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { modelApi } from '../services/api';
+import { Model } from '../types';
 
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState({
-    defaultModel: 'yolov8n.pt',
-    confidenceThreshold: 0.5,
-    useGpu: false,
-    cudaDevice: '0',
-  });
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.5);
+
+  const queryClient = useQueryClient();
 
   const { data: models, isLoading } = useQuery('models', modelApi.getAll);
 
-  const handleModelChange = (event: SelectChangeEvent<string>) => {
-    setSettings({ ...settings, defaultModel: event.target.value });
-  };
-
-  const handleConfidenceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({
-      ...settings,
-      confidenceThreshold: parseFloat(event.target.value),
-    });
-  };
-
-  const handleGpuChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({ ...settings, useGpu: event.target.checked });
-  };
-
-  const handleCudaDeviceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({ ...settings, cudaDevice: event.target.value });
-  };
+  const updateMutation = useMutation(
+    (data: { name: string; confidence: number }) =>
+      modelApi.update(data.name, { confidence_threshold: data.confidence }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('models');
+      },
+    }
+  );
 
   const handleSave = () => {
-    // TODO: Implement settings save
-    console.log('Saving settings:', settings);
+    if (selectedModel) {
+      updateMutation.mutate({
+        name: selectedModel,
+        confidence: confidenceThreshold,
+      });
+    }
   };
 
   if (isLoading) {
     return <Typography>Loading...</Typography>;
   }
+
+  const modelList = models?.data || [];
 
   return (
     <Box>
@@ -61,74 +54,48 @@ const Settings: React.FC = () => {
         Settings
       </Typography>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-        <Box>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Object Detection Settings
-              </Typography>
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Default Model</InputLabel>
-                <Select
-                  value={settings.defaultModel}
-                  onChange={handleModelChange}
-                >
-                  {models?.data.map((model) => (
-                    <MenuItem key={model.name} value={model.name}>
-                      {model.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Confidence Threshold"
-                type="number"
-                value={settings.confidenceThreshold}
-                onChange={handleConfidenceChange}
-                inputProps={{ min: 0, max: 1, step: 0.1 }}
-              />
-            </CardContent>
-          </Card>
-        </Box>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Object Detection Settings
+          </Typography>
 
-        <Box>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Hardware Settings
-              </Typography>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.useGpu}
-                    onChange={handleGpuChange}
-                  />
-                }
-                label="Use GPU"
-              />
-              {settings.useGpu && (
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="CUDA Device"
-                  value={settings.cudaDevice}
-                  onChange={handleCudaDeviceChange}
-                  helperText="Enter the CUDA device ID (e.g., 0, 1, 2)"
-                />
-              )}
-            </CardContent>
-          </Card>
-        </Box>
-      </Box>
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Model</InputLabel>
+            <Select
+              value={selectedModel}
+              label="Model"
+              onChange={(e) => setSelectedModel(e.target.value)}
+            >
+              {modelList.map((model: Model) => (
+                <MenuItem key={model.name} value={model.name}>
+                  {model.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="contained" onClick={handleSave}>
-          Save Settings
-        </Button>
-      </Box>
+          <Box sx={{ mb: 3 }}>
+            <Typography gutterBottom>Confidence Threshold</Typography>
+            <Slider
+              value={confidenceThreshold}
+              onChange={(_, value) => setConfidenceThreshold(value as number)}
+              min={0}
+              max={1}
+              step={0.1}
+              valueLabelDisplay="auto"
+            />
+          </Box>
+
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!selectedModel}
+          >
+            Save Settings
+          </Button>
+        </CardContent>
+      </Card>
     </Box>
   );
 };

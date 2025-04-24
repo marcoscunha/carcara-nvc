@@ -3,6 +3,11 @@ export interface Camera {
   name: string;
   rtsp_url: string;
   is_active: boolean;
+  device_id: number;
+  resolution: [number, number];
+  fps: number;
+  is_available: boolean;
+  camera_type: string;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +51,7 @@ export interface Model {
   name: string;
   description: string;
   is_available: boolean;
+  confidence_threshold: number;
 }
 
 export interface RegionOfInterest {

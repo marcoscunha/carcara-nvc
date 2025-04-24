@@ -15,7 +15,7 @@ class DetectionCreate(DetectionBase):
 
 class DetectionResponse(DetectionBase):
     id: int
-    model_name: str
+    detection_model_name: str
     confidence: float
     class_name: str
     bbox: List[float]

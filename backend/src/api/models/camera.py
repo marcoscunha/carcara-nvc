@@ -5,7 +5,9 @@ from datetime import datetime
 
 class CameraBase(BaseModel):
     name: str
-    rtsp_url: str
+    camera_type: str = "rtsp"
+    device_id: Optional[int] = None
+    rtsp_url: Optional[str] = None
     is_active: bool = True
 
 
@@ -15,6 +17,8 @@ class CameraCreate(CameraBase):
 
 class CameraUpdate(BaseModel):
     name: Optional[str] = None
+    camera_type: Optional[str] = None
+    device_id: Optional[int] = None
     rtsp_url: Optional[str] = None
     is_active: Optional[bool] = None
 

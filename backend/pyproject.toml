@@ -1,31 +1,46 @@
-[project]
+[tool.poetry]
 name = "carcara-nvc-backend"
-version = "0.0.1"
-description = "IP Camera streaming and object detection backend"
-authors = [
-    {name = "Marcos Cunha", email = "eng.marcos@gmail.com"}
-]
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.109.0",
-    "uvicorn>=0.27.0",
-    "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.9",
-    "python-multipart>=0.0.6",
-    "opencv-python>=4.9.0",
-    "numpy>=1.26.0",
-    "ultralytics>=8.1.0",  # YOLO
-    "torch>=2.2.0",
-    "torchvision>=0.17.0",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "python-dotenv>=1.0.0",
-    "alembic>=1.13.0",
-    "pydantic>=2.6.0",
-    "pydantic-settings>=2.1.0"
+version = "0.1.0"
+description = "Backend for Carcara NVC - IP Camera Streaming and Object Detection"
+authors = ["Your Name <your.email@example.com>"]
+packages = [
+    { include = "src" }
 ]
 
+[tool.poetry.dependencies]
+python = "^3.11.12"
+fastapi = "0.109.0"
+uvicorn = "0.27.0"
+sqlalchemy = "2.0.25"
+psycopg2-binary = "2.9.9"
+pydantic = "2.6.1"
+pydantic-settings = "2.1.0"
+python-multipart = "0.0.6"
+python-jose = {extras = ["cryptography"], version = "3.3.0"}
+passlib = {extras = ["bcrypt"], version = "1.7.4"}
+alembic = "1.13.1"
+opencv-python = "4.9.0.80"
+numpy = "1.26.3"
+ultralytics = "8.1.0"
+torch = {version = "2.2.0", source = "pytorch"}
+torchvision = {version = "0.17.0", source = "pytorch"}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.0.0"
+black = "24.1.1"
+isort = "5.13.2"
+flake8 = "7.0.0"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

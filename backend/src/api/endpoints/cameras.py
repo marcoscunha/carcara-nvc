@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Tuple
+from pydantic import BaseModel
 
 from ...db.session import get_db
 from ...models.camera import Camera
@@ -19,6 +20,8 @@ def create_camera(
     """Create a new IP camera."""
     db_camera = Camera(
         name=camera.name,
+        camera_type=camera.camera_type,
+        device_id=camera.device_id,
         rtsp_url=camera.rtsp_url,
         is_active=camera.is_active
     )
@@ -37,6 +40,43 @@ def list_cameras(
     """List all cameras."""
     cameras = db.query(Camera).offset(skip).limit(limit).all()
     return cameras
+
+
+class CameraInfo(BaseModel):
+    device_id: int
+    name: str
+    resolution: List[int]
+    fps: float
+    is_available: bool
+
+
+@router.get("/scan", response_model=List[CameraInfo])
+async def scan_local_cameras(
+    max_devices: int = 10,
+    detection_service: ObjectDetectionService = Depends(
+        lambda: ObjectDetectionService()
+    )
+) -> List[CameraInfo]:
+    """
+    Scan for available local camera devices.
+
+    Args:
+        max_devices: Maximum number of devices to scan (default: 10)
+
+    Returns:
+        List of available camera devices with their properties
+    """
+    try:
+        cameras = detection_service.scan_local_cameras(max_devices)
+        for camera in cameras:
+            if isinstance(camera["resolution"], tuple):
+                camera["resolution"] = list(camera["resolution"])
+        return [CameraInfo(**camera) for camera in cameras]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scan for cameras: {str(e)}"
+        )
 
 
 @router.get("/{camera_id}", response_model=CameraResponse)

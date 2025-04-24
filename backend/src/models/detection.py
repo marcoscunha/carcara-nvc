@@ -13,7 +13,7 @@ class Detection(Base):
     stream_id = Column(Integer, ForeignKey("streams.id"))
     frame_number = Column(Integer)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    model_name = Column(String)
+    detection_model_name = Column(String)
     confidence = Column(Float)
     class_name = Column(String)
     bbox = Column(JSON)  # [x1, y1, x2, y2]

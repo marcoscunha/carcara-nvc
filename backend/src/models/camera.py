@@ -10,7 +10,9 @@ class Camera(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    rtsp_url = Column(String, unique=True, index=True)
+    camera_type = Column(String, default="rtsp")  # rtsp or local
+    device_id = Column(Integer, nullable=True)  # For local cameras
+    rtsp_url = Column(String, unique=True, index=True, nullable=True)  # For RTSP cameras
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
