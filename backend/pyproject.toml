@@ -1,0 +1,31 @@
+[project]
+name = "carcara-nvc-backend"
+version = "0.0.1"
+description = "IP Camera streaming and object detection backend"
+authors = [
+    {name = "Marcos Cunha", email = "eng.marcos@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.9",
+    "python-multipart>=0.0.6",
+    "opencv-python>=4.9.0",
+    "numpy>=1.26.0",
+    "ultralytics>=8.1.0",  # YOLO
+    "torch>=2.2.0",
+    "torchvision>=0.17.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-dotenv>=1.0.0",
+    "alembic>=1.13.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
