@@ -1,6 +1,8 @@
-from pydantic import BaseModel, HttpUrl
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
+from pydantic import HttpUrl
 
 
 class CameraBase(BaseModel):

@@ -82,6 +82,20 @@ export const CameraScanner: React.FC = () => {
                       FPS: {camera.fps}
                     </Typography>
                     <br />
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Physical Address: {camera.physical_address || 'N/A'}
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="text.primary">
+                      USB ID: {camera.usb_id || 'N/A'}
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Supported Resolutions: {camera.supported_resolutions.map(
+                        ([width, height]) => `${width}x${height}`
+                      ).join(', ')}
+                    </Typography>
+                    <br />
                     <Typography
                       component="span"
                       variant="body2"

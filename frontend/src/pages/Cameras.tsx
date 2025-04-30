@@ -152,7 +152,7 @@ const Cameras: React.FC = () => {
     return <Typography>Loading...</Typography>;
   }
 
-  const cameraList = cameras?.data || [];
+  const cameraList = Array.isArray(cameras) ? cameras : [];
 
   return (
     <Box>
@@ -259,7 +259,7 @@ const Cameras: React.FC = () => {
             <FormControl fullWidth margin="dense">
               <InputLabel>Resolution</InputLabel>
               <Select
-                value={formData.resolution.join('x')}
+                value={formData.resolution?.join('x')}
                 label="Resolution"
                 onChange={(e) => {
                   const [width, height] = e.target.value.split('x').map(Number);

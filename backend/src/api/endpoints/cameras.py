@@ -1,12 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List, Tuple
-from pydantic import BaseModel
+from typing import List
+from typing import Optional
+from typing import Tuple
 
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ...api.models.camera import CameraCreate
+from ...api.models.camera import CameraResponse
+from ...api.models.camera import CameraUpdate
 from ...db.session import get_db
 from ...models.camera import Camera
+from ...services.detection import CameraService
 from ...services.detection import ObjectDetectionService
-from ...api.models.camera import CameraCreate, CameraUpdate, CameraResponse
 
 router = APIRouter()
 detection_service = ObjectDetectionService()
@@ -44,17 +52,21 @@ def list_cameras(
 
 class CameraInfo(BaseModel):
     device_id: int
+    physical_address: Optional[str]
+    usb_id: Optional[str]
     name: str
+    friendly_name: Optional[str]
     resolution: List[int]
     fps: float
     is_available: bool
+    supported_resolutions: List[Tuple[int, int]]
 
 
 @router.get("/scan", response_model=List[CameraInfo])
 async def scan_local_cameras(
     max_devices: int = 10,
-    detection_service: ObjectDetectionService = Depends(
-        lambda: ObjectDetectionService()
+    camera_service: CameraService = Depends(
+        lambda: CameraService()
     )
 ) -> List[CameraInfo]:
     """
@@ -67,7 +79,7 @@ async def scan_local_cameras(
         List of available camera devices with their properties
     """
     try:
-        cameras = detection_service.scan_local_cameras(max_devices)
+        cameras = camera_service.scan_local_cameras(max_devices)
         for camera in cameras:
             if isinstance(camera["resolution"], tuple):
                 camera["resolution"] = list(camera["resolution"])
@@ -89,6 +101,29 @@ def get_camera(
     if camera is None:
         raise HTTPException(status_code=404, detail="Camera not found")
     return camera
+
+
+@router.get("/{camera_id}/status", response_model=dict)
+def get_camera_status(
+    camera_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the status of a specific camera by ID.
+
+    Args:
+        camera_id: ID of the camera.
+
+    Returns:
+        A dictionary containing the camera's status.
+    """
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    # Example logic to determine camera status
+    status = "active" if camera.is_active else "inactive"
+    return {"status": status}
 
 
 @router.put("/{camera_id}", response_model=CameraResponse)

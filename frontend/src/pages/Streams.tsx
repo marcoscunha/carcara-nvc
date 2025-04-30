@@ -111,8 +111,8 @@ const Streams: React.FC = () => {
     return <Typography>Loading...</Typography>;
   }
 
-  const streamList = streams?.data || [];
-  const cameraList = cameras?.data || [];
+  const streamList = Array.isArray(streams) ? streams : [];
+  const cameraList = Array.isArray(cameras) ? cameras : [];
 
   return (
     <Box>

@@ -1,6 +1,7 @@
 import logging
 import sys
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
 # Logging configuration
 LOGGING_CONFIG: Dict[str, Any] = {
@@ -58,8 +59,9 @@ LOGGING_CONFIG: Dict[str, Any] = {
     },
 }
 
+
 def setup_logging():
     """Configure logging for the application."""
-    logging.config.dictConfig(LOGGING_CONFIG)
+    # logging.config.dictConfig(LOGGING_CONFIG)
     logger = logging.getLogger(__name__)
     logger.info("Logging configured successfully")

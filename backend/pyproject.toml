@@ -9,27 +9,27 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.11.12"
-fastapi = "0.109.0"
-uvicorn = "0.27.0"
-sqlalchemy = "2.0.25"
-psycopg2-binary = "2.9.9"
-pydantic = "2.6.1"
-pydantic-settings = "2.1.0"
-python-multipart = "0.0.6"
-python-jose = {extras = ["cryptography"], version = "3.3.0"}
+fastapi = "0.115.12"
+uvicorn = "0.34.2"
+sqlalchemy = "2.0.40"
+psycopg2-binary = "2.9.10"
+pydantic = "2.11.4"
+pydantic-settings = "2.9.1"
+python-multipart = "0.0.20"
+python-jose = {extras = ["cryptography"], version = "3.4.0"}
 passlib = {extras = ["bcrypt"], version = "1.7.4"}
-alembic = "1.13.1"
-opencv-python = "4.9.0.80"
-numpy = "1.26.3"
-ultralytics = "8.1.0"
-torch = {version = "2.2.0", source = "pytorch"}
-torchvision = {version = "0.17.0", source = "pytorch"}
+alembic = "1.15.2"
+opencv-python = "4.11.0.86"
+numpy = "2.2.5"
+ultralytics = "8.3.121"
+torch = {version = "2.7.0", source = "pytorch"}
+torchvision = {version = "0.22.0", source = "pytorch"}
 
 [tool.poetry.group.dev.dependencies]
-pytest = "8.0.0"
-black = "24.1.1"
-isort = "5.13.2"
-flake8 = "7.0.0"
+pytest = "8.3.5"
+black = "25.1.0"
+isort = "6.0.1"
+flake8 = "7.2.0"
 
 [[tool.poetry.source]]
 name = "pytorch"

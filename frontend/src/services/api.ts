@@ -12,10 +12,14 @@ const api = axios.create({
 
 export interface CameraInfo {
   device_id: number;
+  physical_address?: string;
+  usb_id?: string;
   name: string;
+  friendly_name?: string;
   resolution: [number, number];
   fps: number;
   is_available: boolean;
+  supported_resolutions: [number, number][];
 }
 
 export interface ApiResponse<T> {
@@ -25,11 +29,11 @@ export interface ApiResponse<T> {
 // Camera endpoints
 export const cameraApi = {
   getAll: async () => {
-    const response = await api.get<ApiResponse<Camera[]>>('/cameras');
+    const response = await api.get<ApiResponse<Camera[]>>('/cameras/');
     return response.data;
   },
   get: (id: number) => api.get<Camera>(`/cameras/${id}`),
-  create: (camera: Partial<Camera>) => api.post<Camera>('/cameras', camera),
+  create: (camera: Partial<Camera>) => api.post<Camera>('/cameras/', camera),
   update: (id: number, camera: Partial<Camera>) => api.put<Camera>(`/cameras/${id}`, camera),
   delete: (id: number) => api.delete(`/cameras/${id}`),
   scan: () => api.get<CameraInfo[]>('/cameras/scan'),
@@ -38,7 +42,7 @@ export const cameraApi = {
 // Stream endpoints
 export const streamApi = {
   getAll: async () => {
-    const response = await api.get<ApiResponse<Stream[]>>('/streams');
+    const response = await api.get<ApiResponse<Stream[]>>('/streams/');
     return response.data;
   },
   getById: (id: number) => api.get<Stream>(`/streams/${id}`),

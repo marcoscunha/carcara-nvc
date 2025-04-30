@@ -1,12 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
 from typing import List
 
+from fastapi import APIRouter
+from fastapi import BackgroundTasks
+from fastapi import Depends
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from ...api.models.stream import StreamCreate
+from ...api.models.stream import StreamResponse
+from ...api.models.stream import StreamUpdate
 from ...db.session import get_db
-from ...models.stream import Stream
 from ...models.camera import Camera
+from ...models.stream import Stream
 from ...services.detection import ObjectDetectionService
-from ...api.models.stream import StreamCreate, StreamUpdate, StreamResponse
 
 router = APIRouter()
 detection_service = ObjectDetectionService()
