@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 class StreamBase(BaseModel):
     camera_id: int
-    metadata: Optional[Dict[str, Any]] = None
+    stream_metadata: Optional[Dict[str, Any]] = None
 
 
 class StreamCreate(StreamBase):
@@ -17,7 +17,7 @@ class StreamCreate(StreamBase):
 
 class StreamUpdate(BaseModel):
     status: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    stream_metadata: Optional[Dict[str, Any]] = None
 
 
 class StreamResponse(StreamBase):

@@ -1,19 +1,36 @@
 # include fast api
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+import logging
+import time
+from contextlib import asynccontextmanager
+from typing import List
+from typing import Optional
+
+from fastapi import BackgroundTasks
+from fastapi import Depends
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import logging
-import time
 
+from .api.endpoints import alarms
+from .api.endpoints import cameras
+from .api.endpoints import detections
+from .api.endpoints import models
+from .api.endpoints import roi as roi_endpoints
+from .api.endpoints import streams
+from .api.endpoints import ws_streams
 from .core.config import settings
 from .core.logging import setup_logging
-from .db.session import get_db
 from .db.init_db import init_db
-from .models import camera, stream, detection, alarm, roi
+from .db.session import get_db
+from .models import alarm
+from .models import camera
+from .models import detection
+from .models import roi
+from .models import stream
 from .services.detection import ObjectDetectionService
-from .api.endpoints import cameras, streams, detections, models, alarms, roi as roi_endpoints
 
 # Setup logging
 setup_logging()
@@ -40,6 +57,8 @@ app.add_middleware(
 )
 
 # Request logging middleware
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
@@ -53,6 +72,8 @@ async def log_requests(request: Request, call_next):
     return response
 
 # Error handling middleware
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error handler caught: {str(exc)}", exc_info=True)
@@ -92,6 +113,12 @@ app.include_router(
     prefix=f"{settings.API_V1_STR}/roi",
     tags=["roi"]
 )
+app.include_router(
+    ws_streams.router,
+    prefix=f"{settings.API_V1_STR}/ws/streams",
+    tags=["ws_streams"]
+)
+
 
 @app.get("/")
 def read_root():
@@ -102,13 +129,14 @@ def read_root():
         "docs_url": "/docs"
     }
 
-@app.on_event("startup")
-async def startup_event():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Logic
     logger.info("Application starting up...")
     logger.info(f"Environment: {settings.PROJECT_NAME} v{settings.VERSION}")
     logger.info(f"Database URI: {settings.SQLALCHEMY_DATABASE_URI}")
     logger.info(f"Using GPU: {settings.USE_GPU}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
+    yield
+    # Shutdown Logic
     logger.info("Application shutting down...")

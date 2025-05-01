@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from src.api.endpoints.streams import router
 from src.db.session import get_db
 from src.main import app
+from src.models.camera import Camera
 from src.models.stream import Stream
 
 
@@ -37,61 +38,103 @@ class StreamsEndpointTests(TestCase):
     def test_create_stream(self):
         """Test creating a new stream."""
         # Arrange
+        camera = Camera(name="Camera 1", camera_type="local", device_id=4)
+        self.db.add(camera)
+        self.db.commit()
+
+        camera = self.db.query(Camera).filter_by(name="Camera 1").first()
+
         payload = {
-            "name": "Test Stream",
-            "url": "http://example.com/stream",
-            "camera_id": 1
+            "camera_id": camera.id,
+            "stream_metadata": {}
         }
 
         # Act
-        response = self.client.post("/streams/", json=payload)
+        response = self.client.post("/api/v1/streams/", json=payload)
 
         # Assert
         self.assertEqual(response.status_code, 201, "Stream creation should return status code 201")
         self.assertIn("id", response.json(), "Response should contain the stream ID")
         print(f"Created stream: {response.json()}")
 
+        # Clean
+        self.db.query(Stream).filter_by(id=response.json()["id"]).delete()
+        self.db.query(Camera).filter_by(id=camera.id).delete()
+        self.db.commit()
+
     def test_list_streams(self):
         """Test listing all streams."""
         # Arrange
-        self.db.add(Stream(camera_id=1))
-        self.db.add(Stream(camera_id=2))
+        camera = Camera(name="Camera 1", camera_type="local", device_id=4)
+        self.db.add(camera)
+        self.db.commit()
+
+        camera = self.db.query(Camera).filter_by(name="Camera 1").first()
+
+        self.db.add(Stream(camera_id=camera.id, status="active", stream_metadata={"resolution": "1920x1080"}))
         self.db.commit()
 
         # Act
-        response = self.client.get("/streams/")
+        response = self.client.get("/api/v1/streams/")
 
         # Assert
         self.assertEqual(response.status_code, 200, "Listing streams should return status code 200")
         self.assertIsInstance(response.json(), list, "Response should be a list of streams")
+        self.assertEqual(response.json()[0]["camera_id"], camera.id, "Stream should be linked to Camera 1")
         print(f"Streams: {response.json()}")
+
+        # Clean
+        self.db.query(Stream).filter_by(camera_id=camera.id).delete()
+        self.db.query(Camera).filter_by(id=camera.id).delete()
+        self.db.commit()
 
     def test_get_stream(self):
         """Test retrieving a specific stream by ID."""
         # Arrange
-        stream = Stream(name="Stream 1", url="http://example.com/stream1", camera_id=1)
+        camera = Camera(name="Camera 1", camera_type="local", device_id=4)
+        self.db.add(camera)
+        self.db.commit()
+        camera = self.db.query(Camera).filter_by(name="Camera 1").first()
+
+        stream = Stream(camera_id=camera.id, status="active", stream_metadata={"resolution": "1920x1080"})
         self.db.add(stream)
         self.db.commit()
+        stream = self.db.query(Stream).filter_by(camera_id=camera.id).first()
 
         # Act
-        response = self.client.get(f"/streams/{stream.id}")
+        response = self.client.get(f"/api/v1/streams/{stream.id}")
 
         # Assert
         self.assertEqual(response.status_code, 200, "Retrieving a stream should return status code 200")
         self.assertEqual(response.json()["id"], stream.id, "Stream ID should match")
         print(f"Retrieved stream: {response.json()}")
 
+        # Clean
+        self.db.query(Stream).filter_by(id=stream.id).delete()
+        self.db.query(Camera).filter_by(id=camera.id).delete()
+        self.db.commit()
+
     def test_delete_stream(self):
         """Test deleting a specific stream."""
         # Arrange
-        stream = Stream(name="Stream 1", url="http://example.com/stream1", camera_id=1)
+        camera = Camera(name="Camera 1", camera_type="local", device_id=4)
+        self.db.add(camera)
+        self.db.commit()
+        camera = self.db.query(Camera).filter_by(name="Camera 1").first()
+
+        stream = Stream(camera_id=camera.id, status="active", stream_metadata={"resolution": "1920x1080"})
         self.db.add(stream)
         self.db.commit()
+        stream = self.db.query(Stream).filter_by(camera_id=camera.id).first()
 
         # Act
-        response = self.client.delete(f"/streams/{stream.id}")
+        response = self.client.delete(f"/api/v1/streams/{stream.id}")
 
         # Assert
         self.assertEqual(response.status_code, 200, "Deleting a stream should return status code 200")
         self.assertIsNone(self.db.query(Stream).filter_by(id=stream.id).first(), "Stream should be deleted")
         print("Stream deleted successfully.")
+
+        # Clean
+        self.db.query(Camera).filter_by(id=camera.id).delete()
+        self.db.commit()

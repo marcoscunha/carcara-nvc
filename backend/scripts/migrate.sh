@@ -8,17 +8,17 @@ done
 echo "Database is ready!"
 
 # Create versions directory if it doesn't exist
-mkdir -p migrations/versions
+# mkdir -p migrations/versions
 
 # Initialize migrations if not already initialized
-if [ ! -f "migrations/versions/initial.py" ]; then
-    echo "Initializing migrations..."
-    alembic revision --autogenerate -m "initial"
-fi
+# if [ ! -f "migrations/versions/initial.py" ]; then
+#     echo "Initializing migrations..."
+#     alembic revision --autogenerate -m "initial"
+# fi
 
-# Generate new migration
-echo "Generating migration..."
-alembic revision --autogenerate -m "add_camera_type_and_device_id"
+# # Generate new migration
+# echo "Generating migration..."
+# alembic revision --autogenerate -m "add_camera_type_and_device_id"
 
 # Run migration
 echo "Running migration..."

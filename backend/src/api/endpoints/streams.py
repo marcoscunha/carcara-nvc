@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi import BackgroundTasks
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from ...api.models.stream import StreamCreate
@@ -18,7 +19,7 @@ router = APIRouter()
 detection_service = ObjectDetectionService()
 
 
-@router.post("/", response_model=StreamResponse)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=StreamResponse)
 def create_stream(
     stream: StreamCreate,
     db: Session = Depends(get_db)
@@ -32,7 +33,7 @@ def create_stream(
     db_stream = Stream(
         camera_id=stream.camera_id,
         status="active",
-        metadata=stream.metadata
+        metadata=stream.stream_metadata
     )
     db.add(db_stream)
     db.commit()

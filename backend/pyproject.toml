@@ -24,6 +24,7 @@ numpy = "2.2.5"
 ultralytics = "8.3.121"
 torch = {version = "2.7.0", source = "pytorch"}
 torchvision = {version = "0.22.0", source = "pytorch"}
+websockets= "15.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.5"

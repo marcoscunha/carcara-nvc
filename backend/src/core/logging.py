@@ -56,12 +56,22 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "level": "DEBUG",
             "propagate": False,
         },
+        "websockets": {
+            "handlers": ["console", "file"],
+            "level": "INFO",  # Change from DEBUG to INFO to suppress debug messages
+            "propagate": False,
+        },
+        "uvicorn.error": {
+            "handlers": ["console", "file"],
+            "level": "INFO",  # Adjust level if needed
+            "propagate": False,
+        },
     },
 }
 
 
 def setup_logging():
     """Configure logging for the application."""
-    # logging.config.dictConfig(LOGGING_CONFIG)
+    logging.config.dictConfig(LOGGING_CONFIG)
     logger = logging.getLogger(__name__)
     logger.info("Logging configured successfully")
