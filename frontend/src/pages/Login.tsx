@@ -97,7 +97,7 @@ const Login: React.FC = () => {
 
           {/* Subtitle */}
           <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-            Network Video Controller
+            AI-powered Vision Platform
           </Typography>
 
           {/* Login Button */}

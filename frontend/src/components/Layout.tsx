@@ -43,7 +43,7 @@ const CarcaraLogo: React.FC<{ size?: 'small' | 'large' }> = ({ size = 'large' })
         <Typography variant={isSmall ? 'subtitle1' : 'h6'} className="carcara-logo__title">
           CARCARA
         </Typography>
-        <Typography className="carcara-logo__subtitle">NVC</Typography>
+        {!isSmall && <Typography className="carcara-logo__subtitle">VISION</Typography>}
       </Box>
     </Box>
   )
@@ -103,7 +103,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Footer */}
       <Box className="layout__footer">
         <Typography variant="caption" className="layout__footer-text">
-          Network Video Controller
+          Carcara Vision
         </Typography>
       </Box>
     </Box>

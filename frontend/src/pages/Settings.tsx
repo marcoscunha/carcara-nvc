@@ -1077,7 +1077,7 @@ const Settings: React.FC = () => {
                   Description
                 </Typography>
                 <Typography variant="body2" className="text-strong">
-                  AI-powered Network Video Controller for multi-camera detection, alarms and analytics
+                  AI-powered Vision platform for multi-camera detection, alarms and analytics
                 </Typography>
               </Box>
               <Box className="settings-info__row">
