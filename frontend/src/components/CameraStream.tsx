@@ -294,7 +294,10 @@ interface CameraStreamProps {
 
 type StreamProtocol = 'webrtc' | 'mse' | 'hls' | 'mjpeg'
 
-const LOW_LATENCY_PROTOCOL_ORDER: StreamProtocol[] = ['webrtc', 'mse', 'mjpeg', 'hls']
+// Keep MJPEG out of automatic fallback chain because backend currently exposes
+// HLS playlists under the mjpeg URL fields; trying to render that as <img>
+// leads to a broken preview after transient reconnect failures.
+const LOW_LATENCY_PROTOCOL_ORDER: StreamProtocol[] = ['webrtc', 'mse', 'hls']
 
 function hasProtocolUrl(protocol: StreamProtocol, stream: Stream, showAnnotatedStream: boolean): boolean {
   if (!stream.urls) return false

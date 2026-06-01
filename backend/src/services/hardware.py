@@ -254,7 +254,7 @@ class HardwareDetectionService:
         "0xd0d": "Arm Cortex-A77",
         "0xd40": "Arm Neoverse-V1",
         "0xd41": "Arm Cortex-A78",
-        "0xd42": "Arm Cortex-A78AE",   # Jetson Orin
+        "0xd42": "Arm Cortex-A78AE",  # Jetson Orin
         "0xd44": "Arm Cortex-X1",
         "0xd46": "Arm Cortex-A510",
         "0xd47": "Arm Cortex-A710",
@@ -268,12 +268,10 @@ class HardwareDetectionService:
     _ARM_PARTS_NVIDIA: dict[str, str] = {
         "0x000": "NVIDIA Denver",
         "0x003": "NVIDIA Denver 2",
-        "0x004": "NVIDIA Carmel",      # Jetson Xavier
+        "0x004": "NVIDIA Carmel",  # Jetson Xavier
     }
 
-    def _resolve_arm_cpu(
-        self, implementer: str | None, part: str | None
-    ) -> tuple[str | None, str | None]:
+    def _resolve_arm_cpu(self, implementer: str | None, part: str | None) -> tuple[str | None, str | None]:
         """Resolve ARM CPU implementer + part codes to human-readable strings."""
         vendor = self._ARM_IMPLEMENTERS.get(implementer) if implementer else None
         core: str | None = None
@@ -306,10 +304,10 @@ class HardwareDetectionService:
                 # family is usually like "tegra234"
                 code = family.lower().replace("tegra", "").strip()
                 soc_map = {
-                    "186": "Tegra T186 (Parker)",   # TX2
-                    "194": "Tegra T194 (Xavier)",   # Xavier NX / AGX
-                    "234": "Tegra T234 (Orin)",     # Orin Nano / NX / AGX
-                    "210": "Tegra T210 (Erista)",   # Nano / TX1
+                    "186": "Tegra T186 (Parker)",  # TX2
+                    "194": "Tegra T194 (Xavier)",  # Xavier NX / AGX
+                    "234": "Tegra T234 (Orin)",  # Orin Nano / NX / AGX
+                    "210": "Tegra T210 (Erista)",  # Nano / TX1
                 }
                 return f"NVIDIA {soc_map.get(code, family.capitalize())}"
 
@@ -414,9 +412,7 @@ class HardwareDetectionService:
             else:
                 primary_name = f"{primary_name} (NVIDIA L4T)"
             primary_version = (
-                f"{primary_version} / L4T {l4t_version}"
-                if primary_version != "Unknown"
-                else f"L4T {l4t_version}"
+                f"{primary_version} / L4T {l4t_version}" if primary_version != "Unknown" else f"L4T {l4t_version}"
             )
 
         # Detect specific platforms

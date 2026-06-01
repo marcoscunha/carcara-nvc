@@ -858,6 +858,12 @@ async def update_stream(
     if "stream_metadata" in update_data and update_data["stream_metadata"] is not None:
         metadata.update(update_data.pop("stream_metadata"))
 
+    stream_reconfig_keys = ["width", "height", "codec"]
+    stream_reconfig_requested = any(k in update_data for k in stream_reconfig_keys)
+    requested_width = update_data.pop("width", None)
+    requested_height = update_data.pop("height", None)
+    requested_codec = update_data.pop("codec", None)
+
     detection_keys = [
         "detection_enabled",
         "detection_model",
@@ -871,6 +877,56 @@ async def update_stream(
         if key in update_data:
             metadata[key] = update_data.pop(key)
 
+    stream_reconfigured = False
+    if stream_reconfig_requested:
+        camera = db.query(Camera).filter(Camera.id == db_stream.camera_id).first()
+        if camera is None:
+            raise HTTPException(status_code=404, detail="Camera not found")
+        if not db_stream.stream_name:
+            raise HTTPException(status_code=400, detail="Stream not properly configured")
+
+        previous_source_config = metadata.get("source_config") or {}
+        width = int(requested_width or previous_source_config.get("width") or metadata.get("width") or 640)
+        height = int(requested_height or previous_source_config.get("height") or metadata.get("height") or 360)
+        codec = str(requested_codec or previous_source_config.get("codec") or metadata.get("codec") or "h264")
+
+        try:
+            source_config, resolved_source = _build_source_config_for_camera(
+                camera,
+                width=width,
+                height=height,
+                codec=codec,
+                source_config=previous_source_config,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        _apply_resolved_camera_binding(camera, resolved_source)
+        metadata["source_config"] = source_config
+        metadata["width"] = width
+        metadata["height"] = height
+        metadata["codec"] = codec
+
+        await gstreamer_service.remove_stream(db_stream.stream_name)
+        success = await gstreamer_service.add_stream(
+            name=db_stream.stream_name,
+            source_type=source_config["source_type"],
+            source_uri=source_config.get("source_uri"),
+            device_id=source_config.get("device_id"),
+            device_path=source_config.get("device_path"),
+            width=source_config.get("width", 640),
+            height=source_config.get("height", 360),
+            codec=source_config.get("codec", "h264"),
+        )
+        if not success:
+            db_stream.status = "error"
+            db.commit()
+            db.refresh(db_stream)
+            raise HTTPException(status_code=502, detail="Failed to apply updated stream resolution")
+
+        db_stream.status = "active"
+        stream_reconfigured = True
+
     db_stream.stream_metadata = metadata
 
     for field, value in update_data.items():
@@ -880,7 +936,7 @@ async def update_stream(
     db.refresh(db_stream)
 
     # Restart inference worker when detection settings change
-    if detection_changed:
+    if detection_changed or stream_reconfigured:
         inference_worker_manager.restart_worker(db_stream)
 
     host = request.headers.get("host", "localhost").split(":")[0]

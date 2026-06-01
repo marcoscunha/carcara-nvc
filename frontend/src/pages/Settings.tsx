@@ -901,31 +901,26 @@ const Settings: React.FC = () => {
                         <Typography variant="body2" className="text-strong">
                           {hardwareData.platform.host_os_name
                             ? `${hardwareData.platform.host_os_name}${
-                                hardwareData.platform.host_os_version
-                                  ? ` ${hardwareData.platform.host_os_version}`
-                                  : ''
+                                hardwareData.platform.host_os_version ? ` ${hardwareData.platform.host_os_version}` : ''
                               }${
-                                hardwareData.platform.l4t_version
-                                  ? ` • L4T ${hardwareData.platform.l4t_version}`
-                                  : ''
+                                hardwareData.platform.l4t_version ? ` • L4T ${hardwareData.platform.l4t_version}` : ''
                               }`
                             : `${hardwareData.platform.os_name} ${hardwareData.platform.os_version}`}
                         </Typography>
                       </Box>
-                      {hardwareData.platform.is_containerized &&
-                        hardwareData.platform.container_os_name && (
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">
-                              OS (Container)
-                            </Typography>
-                            <Typography variant="body2" className="text-strong">
-                              {hardwareData.platform.container_os_name}
-                              {hardwareData.platform.container_os_version
-                                ? ` ${hardwareData.platform.container_os_version}`
-                                : ''}
-                            </Typography>
-                          </Box>
-                        )}
+                      {hardwareData.platform.is_containerized && hardwareData.platform.container_os_name && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            OS (Container)
+                          </Typography>
+                          <Typography variant="body2" className="text-strong">
+                            {hardwareData.platform.container_os_name}
+                            {hardwareData.platform.container_os_version
+                              ? ` ${hardwareData.platform.container_os_version}`
+                              : ''}
+                          </Typography>
+                        </Box>
+                      )}
                       <Box>
                         <Typography variant="caption" color="text.secondary">
                           Kernel

@@ -120,13 +120,18 @@ class GStreamerPipelineManager:
         logger.info(f"MediaMTX target: rtsp://{mediamtx_host}:{mediamtx_rtsp_port}")
 
     def _build_v4l2_source(self, config: StreamConfig) -> str:
-        """Build V4L2 source element string."""
+        """Build V4L2 source element string.
+
+        Capture at the camera's native resolution and scale in software so that
+        any requested output resolution is supported regardless of what the
+        hardware can deliver natively.
+        """
         device = config.get_v4l2_device()
         return (
             f"v4l2src device={device} ! "
-            f"video/x-raw,width={config.width},height={config.height},"
-            f"framerate={config.framerate}/1 ! "
-            f"videoconvert ! videoscale"
+            f"video/x-raw,framerate={config.framerate}/1 ! "
+            f"videoconvert ! videoscale ! "
+            f"video/x-raw,width={config.width},height={config.height}"
         )
 
     def _build_rtsp_source(self, config: StreamConfig) -> str:

@@ -81,6 +81,44 @@ const getPerformanceTone = (metrics?: StreamInferenceMetrics): 'success' | 'warn
   return 'warning'
 }
 
+const RESOLUTION_PRESETS = [
+  { label: '640x360 (Low)', width: 640, height: 360 },
+  { label: '1280x720 (HD)', width: 1280, height: 720 },
+  { label: '1920x1080 (Full HD)', width: 1920, height: 1080 },
+]
+
+const DEFAULT_STREAM_WIDTH = 640
+const DEFAULT_STREAM_HEIGHT = 360
+const DEFAULT_STREAM_CODEC = 'h264'
+
+const parsePositiveInt = (value: unknown): number | null => {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.floor(n)
+}
+
+const resolveStreamDimensions = (stream?: Stream): { width: number; height: number; codec: string } => {
+  if (!stream) {
+    return {
+      width: DEFAULT_STREAM_WIDTH,
+      height: DEFAULT_STREAM_HEIGHT,
+      codec: DEFAULT_STREAM_CODEC,
+    }
+  }
+
+  const metadata = stream.stream_metadata || {}
+  const sourceConfig = metadata.source_config || {}
+  const width = parsePositiveInt(metadata.width) || parsePositiveInt(sourceConfig.width)
+  const height = parsePositiveInt(metadata.height) || parsePositiveInt(sourceConfig.height)
+  const codec = String(metadata.codec || sourceConfig.codec || DEFAULT_STREAM_CODEC)
+
+  return {
+    width: width || DEFAULT_STREAM_WIDTH,
+    height: height || DEFAULT_STREAM_HEIGHT,
+    codec,
+  }
+}
+
 const Streams: React.FC = () => {
   const [open, setOpen] = useState(false)
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null)
@@ -89,6 +127,9 @@ const Streams: React.FC = () => {
     camera_id: 0,
     status: 'stopped',
     current_frame: 0,
+    width: DEFAULT_STREAM_WIDTH,
+    height: DEFAULT_STREAM_HEIGHT,
+    codec: DEFAULT_STREAM_CODEC,
     detection_enabled: true,
     detection_model: '',
     sync_video_predictions: false,
@@ -135,10 +176,14 @@ const Streams: React.FC = () => {
       setSelectedStream(stream)
       setDialogMode('edit')
       const streamModel = stream.detection_model || stream.stream_metadata?.detection_model
+      const streamDimensions = resolveStreamDimensions(stream)
       setFormData({
         camera_id: stream.camera_id,
         status: stream.status,
         current_frame: stream.current_frame,
+        width: streamDimensions.width,
+        height: streamDimensions.height,
+        codec: streamDimensions.codec,
         detection_enabled:
           typeof stream.detection_enabled === 'boolean'
             ? stream.detection_enabled
@@ -159,6 +204,9 @@ const Streams: React.FC = () => {
         camera_id: 0,
         status: 'stopped',
         current_frame: 0,
+        width: DEFAULT_STREAM_WIDTH,
+        height: DEFAULT_STREAM_HEIGHT,
+        codec: DEFAULT_STREAM_CODEC,
         detection_enabled: true,
         detection_model: fallbackModel || '',
         sync_video_predictions: false,
@@ -177,6 +225,9 @@ const Streams: React.FC = () => {
       camera_id: 0,
       status: 'stopped',
       current_frame: 0,
+      width: DEFAULT_STREAM_WIDTH,
+      height: DEFAULT_STREAM_HEIGHT,
+      codec: DEFAULT_STREAM_CODEC,
       detection_enabled: true,
       detection_model: fallbackModel || '',
       sync_video_predictions: false,
@@ -195,10 +246,35 @@ const Streams: React.FC = () => {
     const selectedTaskType =
       modelOptions.find((m: Model) => m.name === selectedModel)?.task_type || inferTaskTypeFromModel(selectedModel)
 
+    const existingSourceConfig =
+      formData.stream_metadata && typeof formData.stream_metadata === 'object'
+        ? ((formData.stream_metadata as Record<string, unknown>).source_config as Record<string, unknown> | undefined)
+        : undefined
+
+    const normalizedSourceConfig = {
+      ...(existingSourceConfig || {}),
+      width: formData.width,
+      height: formData.height,
+      codec: formData.codec,
+    }
+
+    const normalizedMetadata = {
+      ...(formData.stream_metadata || {}),
+      width: formData.width,
+      height: formData.height,
+      codec: formData.codec,
+      source_config: normalizedSourceConfig,
+      sync_video_predictions: formData.sync_video_predictions,
+    }
+
     const streamPayload = {
       ...formData,
+      width: formData.width,
+      height: formData.height,
+      codec: formData.codec,
       detection_model: selectedModel,
       detection_task_type: selectedTaskType,
+      stream_metadata: normalizedMetadata,
     }
 
     if (selectedStream) {
@@ -693,6 +769,43 @@ const Streams: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
+
+            <FormControl fullWidth margin="dense">
+              <InputLabel>Stream resolution</InputLabel>
+              <Select
+                value={`${formData.width}x${formData.height}`}
+                label="Stream resolution"
+                onChange={(e) => {
+                  const [w, h] = String(e.target.value)
+                    .split('x')
+                    .map((part) => Number(part))
+                  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+                    setFormData({
+                      ...formData,
+                      width: w,
+                      height: h,
+                    })
+                  }
+                }}
+              >
+                {RESOLUTION_PRESETS.map((preset) => (
+                  <MenuItem key={`${preset.width}x${preset.height}`} value={`${preset.width}x${preset.height}`}>
+                    {preset.label}
+                  </MenuItem>
+                ))}
+                {!RESOLUTION_PRESETS.some(
+                  (preset) => preset.width === formData.width && preset.height === formData.height,
+                ) && (
+                  <MenuItem value={`${formData.width}x${formData.height}`}>
+                    {`${formData.width}x${formData.height} (Custom)`}
+                  </MenuItem>
+                )}
+              </Select>
+            </FormControl>
+
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+              Resolution applies to stream publishing and synchronized annotated video.
+            </Typography>
 
             <FormControlLabel
               control={

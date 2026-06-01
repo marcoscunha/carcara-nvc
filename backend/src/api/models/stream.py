@@ -25,6 +25,9 @@ class StreamCreate(StreamBase):
 
 class StreamUpdate(BaseModel):
     status: str | None = None
+    width: int | None = None
+    height: int | None = None
+    codec: str | None = None
     stream_metadata: dict[str, Any] | None = None
     detection_enabled: bool | None = None
     detection_model: str | None = None
