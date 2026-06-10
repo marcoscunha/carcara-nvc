@@ -14,8 +14,15 @@ from ...services.camera_service import CameraService
 from ...services.object_detection import ObjectDetectionService
 
 router = APIRouter()
-detection_service = ObjectDetectionService()
 camera_service = CameraService()
+detection_service: ObjectDetectionService | None = None
+
+
+def _get_detection_service() -> ObjectDetectionService:
+    global detection_service
+    if detection_service is None:
+        detection_service = ObjectDetectionService()
+    return detection_service
 
 
 @router.post("/", response_model=DetectionResponse)
@@ -42,14 +49,15 @@ async def create_detection(
     if frame is None:
         raise HTTPException(status_code=400, detail="Could not process stream")
 
-    detections = detection_service.detect(frame)
+    service = _get_detection_service()
+    detections = service.detect(frame)
 
     # Store detection results
     db_detection = Detection(
         camera_id=detection.camera_id,
         stream_id=detection.stream_id,
         frame_number=detection.frame_number,
-        detection_model_name=detection_service.model_name,
+        detection_model_name=service.model_name,
         confidence=detections[0]["confidence"] if detections else 0.0,
         class_name=detections[0]["class_name"] if detections else "",
         bbox=detections[0]["bbox"] if detections else [],

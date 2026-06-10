@@ -11,10 +11,8 @@ from ...core.security import AuthenticatedUser
 from ...db.session import get_db
 from ...models.camera import Camera
 from ...services.camera_service import CameraService
-from ...services.object_detection import ObjectDetectionService
 
 router = APIRouter()
-detection_service = ObjectDetectionService()
 LOCAL_CAMERA_TYPES = {"local", "usb"}
 LOCAL_CAMERA_IDENTITY_FIELDS = (
     "device_id",

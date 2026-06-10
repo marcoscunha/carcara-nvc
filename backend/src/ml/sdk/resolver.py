@@ -25,7 +25,7 @@ from ..accelerators.detector import HardwareDetector
 from ..base import HardwareAccelerator
 from ..base import ModelConfig
 from ..base import ModelType
-from ..registry import ModelRegistry
+from ..registry import model_registry
 from .exceptions import DeviceUnavailableError
 from .exceptions import ModelNotFoundError
 from .exceptions import RuntimeNotSupportedError
@@ -203,8 +203,7 @@ def _resolve_model_path(model: str, task: str) -> str:
         return os.path.abspath(model)
 
     # Registry lookup
-    registry = ModelRegistry()
-    info = registry.get_model(model)
+    info = model_registry.get_model(model)
     if info is not None and os.path.isfile(info.path):
         return os.path.abspath(info.path)
 

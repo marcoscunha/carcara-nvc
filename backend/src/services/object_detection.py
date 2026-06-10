@@ -116,10 +116,6 @@ class ObjectDetectionService:
                     if stem and stem not in model_candidates:
                         model_candidates.append(stem)
 
-                # Last-resort fallback for startup safety.
-                if "yolov8n" not in model_candidates:
-                    model_candidates.append("yolov8n")
-
                 last_error: Exception | None = None
                 for candidate in model_candidates:
                     try:

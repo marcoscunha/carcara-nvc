@@ -3,6 +3,7 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi import Request
@@ -29,8 +30,8 @@ from .models.stream import Stream
 from .services.alarm_dispatcher import alarm_dispatcher
 from .services.camera_connectivity import sync_local_camera_connectivity
 from .services.inference_worker_manager import inference_worker_manager
-from .services.models import ensure_model_available
 from .services.models import ensure_stream_models_enabled
+from .services.models import get_model_by_name
 
 # Setup logging
 setup_logging()
@@ -69,8 +70,23 @@ async def lifespan(app: FastAPI):
     dispatcher_task: asyncio.Task | None = None
     self_heal_task: asyncio.Task | None = None
     try:
-        if not ensure_model_available(settings.DEFAULT_MODEL):
-            logger.warning("Default model '%s' is not available at startup", settings.DEFAULT_MODEL)
+        default_model = settings.DEFAULT_MODEL.strip()
+        default_model_key = default_model
+        suffix = Path(default_model).suffix.lower()
+        if suffix in {".pt", ".onnx", ".engine", ".trt"}:
+            default_model_key = Path(default_model).stem
+
+        try:
+            model_info = get_model_by_name(default_model_key)
+            if not model_info.get("is_downloaded", False):
+                logger.warning(
+                    "Default model '%s' is not present in storage root '%s'. "
+                    "Populate the mounted models volume before startup.",
+                    default_model,
+                    model_info.get("storage_root", "/app/models"),
+                )
+        except ValueError:
+            logger.warning("Default model '%s' is not registered in the model catalog", default_model)
 
         # First heal local camera bindings after detach/reattach events.
         sync_local_camera_connectivity(db)

@@ -555,7 +555,7 @@ class ModelRegistry:
 # ---------------------------------------------------------------------------
 # Module-level singleton — import and use model_registry throughout the app
 # ---------------------------------------------------------------------------
-model_registry = ModelRegistry()  # ---------------------------------------------------------------------------
-# Module-level singleton — import and use model_registry throughout the app
-# ---------------------------------------------------------------------------
-model_registry = ModelRegistry()
+model_registry = ModelRegistry(
+    models_dir=os.getenv("MODELS_DIR", "./models"),
+    cache_dir=os.getenv("MODEL_CACHE_DIR", "./.model_cache"),
+)
