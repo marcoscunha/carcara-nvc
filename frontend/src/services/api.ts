@@ -17,6 +17,8 @@ import {
   DiscoveredCamera,
   DiscoveryProtocol,
   InferenceRuntimeConfig,
+  RuntimeCatalog,
+  WorkerStatus,
   RealtimeInferenceMetrics,
   BenchmarkScenario,
   BenchmarkExportResponse,
@@ -267,6 +269,50 @@ export const inferenceRuntimeApi = {
     const response = await api.get<InferenceRuntimeConfig>('/inference-runtime/')
     return response.data
   },
-  updateConfig: (data: Partial<Pick<InferenceRuntimeConfig, 'model_name' | 'accelerator' | 'task_type'>>) =>
-    api.put<InferenceRuntimeConfig>('/inference-runtime/', data),
+  updateConfig: (
+    data: Partial<
+      Pick<InferenceRuntimeConfig, 'model_name' | 'accelerator' | 'task_type' | 'runtime' | 'dtype' | 'providers'>
+    > & { apply_to_running?: boolean },
+  ) => api.put<InferenceRuntimeConfig>('/inference-runtime/', data),
+}
+
+export const runtimesApi = {
+  getAll: async () => {
+    const response = await api.get<RuntimeCatalog>('/runtimes/')
+    return response.data
+  },
+  getRecommended: async () => {
+    const response = await api.get<{ recommended_runtime: string }>('/runtimes/recommended')
+    return response.data
+  },
+}
+
+export const inferenceWorkersApi = {
+  list: async () => {
+    const response = await api.get<WorkerStatus[]>('/inference-workers/')
+    return response.data
+  },
+  get: async (streamId: number) => {
+    const response = await api.get<WorkerStatus>(`/inference-workers/${streamId}`)
+    return response.data
+  },
+  start: (streamId: number) => api.post(`/inference-workers/${streamId}/start`),
+  stop: (streamId: number) => api.post(`/inference-workers/${streamId}/stop`),
+  restart: (streamId: number) => api.post(`/inference-workers/${streamId}/restart`),
+  patchConfig: (
+    streamId: number,
+    data: {
+      model_name?: string
+      task_type?: string
+      runtime?: string
+      dtype?: string
+      providers?: string[]
+      confidence?: number
+      classes?: number[]
+    },
+  ) => api.patch(`/inference-workers/${streamId}/config`, data),
+  warmup: (streamId: number, iterations: number = 3) =>
+    api.post(`/inference-workers/${streamId}/warmup`, { iterations }),
+  stopAll: () => api.post('/inference-workers/actions/stop-all'),
+  restartAll: () => api.post('/inference-workers/actions/restart-all'),
 }

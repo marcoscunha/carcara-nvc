@@ -34,14 +34,12 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 import cv2
-
+import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    import numpy as np
     from .model_batch_coordinator import ModelBatchCoordinator
-
 
 from ..ml.annotator import FrameAnnotator
 from ..ml.base import HardwareAccelerator
@@ -144,6 +142,7 @@ class InferenceWorker:
         # Persistent pipeline + backing engine handle (for track/pose/segment parsing)
         self._pipeline: BaseTaskPipeline | None = None
         self._engine: Any | None = None
+        self._inference_lock = threading.Lock()
 
         # Annotated stream writer
         self._annotated_writer: AnnotatedStreamWriter | None = None
@@ -295,6 +294,30 @@ class InferenceWorker:
             "running": self.is_running(),
         }
 
+    def warmup(self, iterations: int = 3) -> dict[str, Any]:
+        """Run warmup inferences on a synthetic frame without restarting the worker."""
+        if iterations < 1:
+            raise ValueError("iterations must be >= 1")
+
+        if self._pipeline is None:
+            raise RuntimeError("Worker pipeline is not initialized")
+
+        frame = np.zeros((self._config.height, self._config.width, 3), dtype=np.uint8)
+        latencies_ms: list[float] = []
+
+        with self._inference_lock:
+            for _ in range(iterations):
+                _, inference_ms, _, _ = self._run_inference(frame)
+                latencies_ms.append(float(inference_ms))
+
+        return {
+            "iterations": iterations,
+            "avg_inference_ms": round(sum(latencies_ms) / len(latencies_ms), 2),
+            "min_inference_ms": round(min(latencies_ms), 2),
+            "max_inference_ms": round(max(latencies_ms), 2),
+            "latencies_ms": [round(item, 2) for item in latencies_ms],
+        }
+
     # ------------------------------------------------------------------ #
     # Private: main loop (runs in dedicated thread)
     # ------------------------------------------------------------------ #
@@ -395,7 +418,8 @@ class InferenceWorker:
             try:
                 if run_inference:
                     inference_started = time.perf_counter()
-                    detections, inference_ms, preprocess_ms, postprocess_ms = self._run_inference(frame)
+                    with self._inference_lock:
+                        detections, inference_ms, preprocess_ms, postprocess_ms = self._run_inference(frame)
                     inference_total_ms = (time.perf_counter() - inference_started) * 1000.0
                     self._last_detections = detections
                     self._record_stage_timing("inference_total", inference_total_ms)

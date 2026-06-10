@@ -11,6 +11,8 @@ import {
   hardwareApi,
   discoveryApi,
   inferenceRuntimeApi,
+  runtimesApi,
+  inferenceWorkersApi,
 } from '../services/api'
 import {
   Camera,
@@ -80,6 +82,13 @@ export const queryKeys = {
   },
   inferenceRuntime: {
     config: ['inference-runtime', 'config'] as const,
+  },
+  runtimes: {
+    all: ['runtimes'] as const,
+  },
+  inferenceWorkers: {
+    all: ['inference-workers'] as const,
+    detail: (streamId: number) => ['inference-workers', streamId] as const,
   },
   inferenceMetrics: {
     realtime: ['inference-metrics', 'realtime'] as const,
@@ -603,12 +612,131 @@ export const useUpdateInferenceRuntimeConfig = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: Partial<Pick<InferenceRuntimeConfig, 'model_name' | 'accelerator' | 'task_type'>>) =>
-      inferenceRuntimeApi.updateConfig(data),
+    mutationFn: (
+      data: Partial<
+        Pick<InferenceRuntimeConfig, 'model_name' | 'accelerator' | 'task_type' | 'runtime' | 'dtype' | 'providers'>
+      > & { apply_to_running?: boolean },
+    ) => inferenceRuntimeApi.updateConfig(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.inferenceRuntime.config })
       queryClient.invalidateQueries({ queryKey: queryKeys.inferenceMetrics.realtime })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
       queryClient.invalidateQueries({ queryKey: ['streams'] })
+    },
+  })
+}
+
+export const useRuntimes = () => {
+  return useQuery({
+    queryKey: queryKeys.runtimes.all,
+    queryFn: runtimesApi.getAll,
+    staleTime: 30 * 1000,
+  })
+}
+
+export const useInferenceWorkers = () => {
+  return useQuery({
+    queryKey: queryKeys.inferenceWorkers.all,
+    queryFn: inferenceWorkersApi.list,
+    refetchInterval: 2000,
+  })
+}
+
+export const useStartWorker = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (streamId: number) => inferenceWorkersApi.start(streamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.streams.all })
+    },
+  })
+}
+
+export const useStopWorker = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (streamId: number) => inferenceWorkersApi.stop(streamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+    },
+  })
+}
+
+export const useRestartWorker = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (streamId: number) => inferenceWorkersApi.restart(streamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceMetrics.realtime })
+    },
+  })
+}
+
+export const useUpdateWorkerConfig = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      streamId,
+      data,
+    }: {
+      streamId: number
+      data: {
+        model_name?: string
+        task_type?: string
+        runtime?: string
+        dtype?: string
+        providers?: string[]
+        confidence?: number
+        classes?: number[]
+      }
+    }) => inferenceWorkersApi.patchConfig(streamId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceMetrics.realtime })
+      queryClient.invalidateQueries({ queryKey: queryKeys.streams.all })
+    },
+  })
+}
+
+export const useWarmupWorker = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ streamId, iterations = 3 }: { streamId: number; iterations?: number }) =>
+      inferenceWorkersApi.warmup(streamId, iterations),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+    },
+  })
+}
+
+export const useStopAllWorkers = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => inferenceWorkersApi.stopAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceMetrics.realtime })
+    },
+  })
+}
+
+export const useRestartAllWorkers = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => inferenceWorkersApi.restartAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceWorkers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inferenceMetrics.realtime })
+      queryClient.invalidateQueries({ queryKey: queryKeys.streams.all })
     },
   })
 }

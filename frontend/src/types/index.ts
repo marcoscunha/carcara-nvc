@@ -63,9 +63,56 @@ export interface InferenceRuntimeConfig {
   model_name: string
   accelerator: string
   task_type: string
+  runtime: string
+  dtype: string
+  providers: string[]
   available_models: string[]
   available_accelerators: string[]
+  available_runtimes: string[]
   available_task_types: string[]
+  affected_running_workers: number
+  restarted_workers: number
+}
+
+export interface RuntimeVariant {
+  id: string
+  label: string
+  available: boolean
+  reason?: string | null
+}
+
+export interface RuntimeOption {
+  id: string
+  label: string
+  runtime_type: string
+  available: boolean
+  reason?: string | null
+  supported_devices: string[]
+  supported_dtypes: string[]
+  providers: string[]
+  variants: RuntimeVariant[]
+}
+
+export interface RuntimeCatalog {
+  options: RuntimeOption[]
+  recommended_runtime: string
+}
+
+export interface WorkerStatus {
+  stream_id: number
+  frames_processed: number
+  avg_inference_ms: number
+  fps: number
+  inference_throughput_fps: number
+  target_inference_fps: number
+  output_fps: number
+  model: string
+  accelerator: string
+  runtime: string
+  dtype: string
+  providers: string[]
+  task_type: string
+  running: boolean
 }
 
 export interface StreamInferenceMetrics {

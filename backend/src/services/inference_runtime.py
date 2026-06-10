@@ -13,6 +13,7 @@ from ..ml.registry import model_registry
 from .acceleration_policy import AccelerationPolicyConfig
 from .acceleration_policy import ResolvedAccelerationPolicy
 from .acceleration_policy import resolve_policy
+from .runtime_catalog import list_available_runtime_ids
 
 
 def _resolve_default_accelerator() -> HardwareAccelerator:
@@ -27,6 +28,9 @@ class InferenceRuntimeConfig:
     model_name: str
     accelerator: HardwareAccelerator
     task_type: str = TASK_TYPE_DETECT  # detect | pose | segment
+    runtime: str = "auto"
+    dtype: str = "auto"
+    providers: list[str] | None = None
     acceleration_profile: str = "generic"
     accel_preprocess_mode: str = "python"
     accel_postprocess_mode: str = "python"
@@ -44,6 +48,9 @@ class InferenceRuntimeService:
             model_name=settings.DEFAULT_MODEL,
             accelerator=_resolve_default_accelerator(),
             task_type=TASK_TYPE_DETECT,
+            runtime="auto",
+            dtype="auto",
+            providers=None,
             acceleration_profile=self._acceleration.profile,
             accel_preprocess_mode=self._acceleration.selected_preprocess_mode,
             accel_postprocess_mode=self._acceleration.selected_postprocess_mode,
@@ -57,6 +64,9 @@ class InferenceRuntimeService:
                 model_name=self._config.model_name,
                 accelerator=self._config.accelerator,
                 task_type=self._config.task_type,
+                runtime=self._config.runtime,
+                dtype=self._config.dtype,
+                providers=list(self._config.providers) if self._config.providers else None,
                 acceleration_profile=self._config.acceleration_profile,
                 accel_preprocess_mode=self._config.accel_preprocess_mode,
                 accel_postprocess_mode=self._config.accel_postprocess_mode,
@@ -69,6 +79,9 @@ class InferenceRuntimeService:
         model_name: str | None = None,
         accelerator: str | HardwareAccelerator | None = None,
         task_type: str | None = None,
+        runtime: str | None = None,
+        dtype: str | None = None,
+        providers: list[str] | None = None,
         refresh_capabilities: bool = False,
     ) -> InferenceRuntimeConfig:
         with self._lock:
@@ -78,6 +91,12 @@ class InferenceRuntimeService:
                 self._config.accelerator = self._coerce_accelerator(accelerator)
             if task_type is not None:
                 self._config.task_type = task_type
+            if runtime is not None:
+                self._config.runtime = self._coerce_runtime(runtime)
+            if dtype is not None:
+                self._config.dtype = self._coerce_dtype(dtype)
+            if providers is not None:
+                self._config.providers = self._coerce_providers(providers)
             if refresh_capabilities:
                 self._acceleration = self._resolve_acceleration_policy(refresh_capabilities=True)
 
@@ -91,6 +110,9 @@ class InferenceRuntimeService:
                 model_name=self._config.model_name,
                 accelerator=self._config.accelerator,
                 task_type=self._config.task_type,
+                runtime=self._config.runtime,
+                dtype=self._config.dtype,
+                providers=list(self._config.providers) if self._config.providers else None,
                 acceleration_profile=self._config.acceleration_profile,
                 accel_preprocess_mode=self._config.accel_preprocess_mode,
                 accel_postprocess_mode=self._config.accel_postprocess_mode,
@@ -106,11 +128,36 @@ class InferenceRuntimeService:
         available = HardwareDetector.detect_all()
         return [acc.value for acc, enabled in available.items() if enabled]
 
+    def list_available_runtimes(self) -> list[str]:
+        return list_available_runtime_ids()
+
     @staticmethod
     def _coerce_accelerator(accelerator: str | HardwareAccelerator) -> HardwareAccelerator:
         if isinstance(accelerator, HardwareAccelerator):
             return accelerator
         return HardwareAccelerator(accelerator)
+
+    @staticmethod
+    def _coerce_runtime(runtime: str) -> str:
+        candidate = runtime.strip().lower()
+        if candidate == "auto":
+            return candidate
+
+        if candidate not in set(list_available_runtime_ids()):
+            raise ValueError(f"Unsupported runtime: {runtime}")
+        return candidate
+
+    @staticmethod
+    def _coerce_dtype(dtype: str) -> str:
+        candidate = dtype.strip().lower()
+        valid = {"auto", "fp32", "fp16", "int8"}
+        if candidate not in valid:
+            raise ValueError(f"Unsupported dtype: {dtype}")
+        return candidate
+
+    @staticmethod
+    def _coerce_providers(providers: list[str]) -> list[str]:
+        return [item for item in providers if isinstance(item, str) and item.strip()]
 
     @staticmethod
     def _resolve_acceleration_policy(refresh_capabilities: bool = False) -> ResolvedAccelerationPolicy:

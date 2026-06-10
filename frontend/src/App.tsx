@@ -11,6 +11,7 @@ import Layout from './components/Layout'
 import Cameras from './pages/Cameras'
 import Alarms from './pages/Alarms'
 import Streams from './pages/Streams'
+import Models from './pages/Models'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 
@@ -350,6 +351,7 @@ const App: React.FC = () => {
                           <Route path="/" element={<Navigate to="/cameras" replace />} />
                           <Route path="/cameras" element={<Cameras />} />
                           <Route path="/streams" element={<Streams />} />
+                          <Route path="/models" element={<Models />} />
                           <Route path="/alarms" element={<Alarms />} />
                           <Route path="/settings" element={<Settings />} />
                         </Routes>

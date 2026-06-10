@@ -1043,6 +1043,58 @@ const Settings: React.FC = () => {
         <Card>
           <CardContent className="settings-card__content">
             <Box className="settings-card__header">
+              <Box className="settings-card__icon settings-card__icon--primary">
+                <MemoryIcon color="primary" />
+              </Box>
+              <Box>
+                <Typography variant="h6" className="settings-card__title">
+                  Model Manager
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Open the dedicated runtime and worker management dashboard
+                </Typography>
+              </Box>
+            </Box>
+
+            <Divider className="settings-card__divider" />
+
+            <Box className="settings-info" sx={{ mb: 2 }}>
+              <Box className="settings-info__row">
+                <Typography variant="body2" color="text.secondary">
+                  Runtime
+                </Typography>
+                <Typography variant="body2" className="settings-info__value">
+                  {runtimeConfig?.runtime || 'auto'}
+                </Typography>
+              </Box>
+              <Box className="settings-info__row">
+                <Typography variant="body2" color="text.secondary">
+                  Accelerator
+                </Typography>
+                <Typography variant="body2" className="settings-info__value">
+                  {runtimeConfig?.accelerator || '-'}
+                </Typography>
+              </Box>
+              <Box className="settings-info__row">
+                <Typography variant="body2" color="text.secondary">
+                  DType
+                </Typography>
+                <Typography variant="body2" className="settings-info__value">
+                  {runtimeConfig?.dtype || 'auto'}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Button variant="contained" color="primary" href="/models" fullWidth>
+              Open Model Manager
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* System Info Card */}
+        <Card>
+          <CardContent className="settings-card__content">
+            <Box className="settings-card__header">
               <Box className="settings-card__icon settings-card__icon--secondary">
                 <SettingsIcon color="secondary" />
               </Box>

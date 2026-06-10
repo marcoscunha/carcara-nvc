@@ -17,6 +17,7 @@ import {
   Menu as MenuIcon,
   Videocam as CameraIcon,
   PlayCircle as StreamIcon,
+  Memory as ModelsIcon,
   Notifications as AlarmIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material'
@@ -61,6 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = [
     { text: 'Cameras', icon: <CameraIcon />, path: '/cameras' },
     { text: 'Streams', icon: <StreamIcon />, path: '/streams' },
+    { text: 'Models', icon: <ModelsIcon />, path: '/models' },
     { text: 'Alarms', icon: <AlarmIcon />, path: '/alarms' },
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ]

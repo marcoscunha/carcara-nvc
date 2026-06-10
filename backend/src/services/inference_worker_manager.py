@@ -30,11 +30,11 @@ Usage::
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import TYPE_CHECKING
 from typing import Any
 from urllib.parse import urlparse
-import os
 
 from ..core.config import settings
 from ..ml.registry import TASK_TYPE_DETECT
@@ -91,9 +91,11 @@ def _build_worker_config(stream: Stream, runtime: Any | None = None) -> WorkerCo
         raise RuntimeError(f"Configured model '{assigned_model_name}' is not downloaded")
     model_name = model_info.path
     task_type = metadata.get("detection_task_type") or getattr(rt, "task_type", TASK_TYPE_DETECT)
-    runtime = metadata.get("detection_runtime", "auto")
-    dtype = metadata.get("detection_dtype", "auto")
+    runtime = metadata.get("detection_runtime") or getattr(rt, "runtime", "auto")
+    dtype = metadata.get("detection_dtype") or getattr(rt, "dtype", "auto")
     providers = metadata.get("detection_providers")
+    if providers is None:
+        providers = getattr(rt, "providers", None)
     if providers is not None and not isinstance(providers, list):
         providers = None
     confidence = float(metadata.get("detection_confidence", 0.5))
@@ -245,7 +247,8 @@ class InferenceWorkerManager:
             return
         try:
             from ..db.session import SessionLocal
-            from ..models.alarm import Alarm, AlarmZone
+            from ..models.alarm import Alarm
+            from ..models.alarm import AlarmZone
 
             db = SessionLocal()
             try:
@@ -261,6 +264,44 @@ class InferenceWorkerManager:
     def list_stats(self) -> list[dict[str, Any]]:
         with self._lock:
             return [w.get_stats() for w in self._workers.values()]
+
+    def get_worker_stats(self, stream_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            worker = self._workers.get(stream_id)
+        if worker is None:
+            return None
+        return worker.get_stats()
+
+    def get_running_stream_ids(self) -> list[int]:
+        with self._lock:
+            return list(self._workers.keys())
+
+    def count_running_workers_using_global_defaults(self, streams: list[Stream]) -> int:
+        running_ids = set(self.get_running_stream_ids())
+        count = 0
+        for stream in streams:
+            if stream.id not in running_ids:
+                continue
+
+            metadata = stream.stream_metadata or {}
+            has_override = any(
+                key in metadata
+                for key in (
+                    "detection_runtime",
+                    "detection_dtype",
+                    "detection_providers",
+                )
+            )
+            if not has_override:
+                count += 1
+        return count
+
+    def warmup_worker(self, stream_id: int, iterations: int = 3) -> dict[str, Any] | None:
+        with self._lock:
+            worker = self._workers.get(stream_id)
+        if worker is None:
+            return None
+        return worker.warmup(iterations)
 
     def get_snapshot_frame(self, stream_id: int) -> Any | None:
         """Return the last decoded frame from the running worker, or None."""
@@ -308,6 +349,11 @@ class InferenceWorkerManager:
             if _is_detection_enabled(stream) and stream.status == "active":
                 self.start_worker(stream, runtime)
 
+    def restart_all(self, active_streams: list[Stream], runtime: Any | None = None) -> int:
+        self.stop_all()
+        self.restore_workers(active_streams, runtime)
+        return len(self.get_running_stream_ids())
+
     # ------------------------------------------------------------------ #
     # Private helpers
     # ------------------------------------------------------------------ #
@@ -317,7 +363,8 @@ class InferenceWorkerManager:
         engine = AlarmEngine(stream_id)
         try:
             from ..db.session import SessionLocal
-            from ..models.alarm import Alarm, AlarmZone
+            from ..models.alarm import Alarm
+            from ..models.alarm import AlarmZone
 
             db = SessionLocal()
             try:

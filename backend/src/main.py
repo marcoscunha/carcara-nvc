@@ -15,8 +15,10 @@ from .api.endpoints import detections
 from .api.endpoints import discovery
 from .api.endpoints import hardware
 from .api.endpoints import inference_runtime
+from .api.endpoints import inference_workers
 from .api.endpoints import models
 from .api.endpoints import roi as roi_endpoints
+from .api.endpoints import runtimes
 from .api.endpoints import streams
 from .api.endpoints import ws_alarms
 from .api.endpoints import ws_detections
@@ -27,8 +29,8 @@ from .models.stream import Stream
 from .services.alarm_dispatcher import alarm_dispatcher
 from .services.camera_connectivity import sync_local_camera_connectivity
 from .services.inference_worker_manager import inference_worker_manager
-from .services.models import ensure_stream_models_enabled
 from .services.models import ensure_model_available
+from .services.models import ensure_stream_models_enabled
 
 # Setup logging
 setup_logging()
@@ -162,6 +164,12 @@ app.include_router(hardware.router, prefix=f"{settings.API_V1_STR}/hardware", ta
 app.include_router(discovery.router, prefix=f"{settings.API_V1_STR}/discovery", tags=["discovery"])
 app.include_router(
     inference_runtime.router, prefix=f"{settings.API_V1_STR}/inference-runtime", tags=["inference-runtime"]
+)
+app.include_router(runtimes.router, prefix=f"{settings.API_V1_STR}/runtimes", tags=["runtimes"])
+app.include_router(
+    inference_workers.router,
+    prefix=f"{settings.API_V1_STR}/inference-workers",
+    tags=["inference-workers"],
 )
 
 # WebSocket routers (no auth middleware — token can be passed as query param if needed)
