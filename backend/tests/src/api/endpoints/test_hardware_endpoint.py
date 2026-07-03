@@ -8,19 +8,16 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-
 from src.main import app
-from src.schemas.hardware import (
-    AcceleratorInfo,
-    AcceleratorStatus,
-    AcceleratorType,
-    CPUArchitecture,
-    CPUInfo,
-    HardwareDetectionResult,
-    MemoryInfo,
-    PlatformInfo,
-    PlatformVendor,
-)
+from src.schemas.hardware import AcceleratorInfo
+from src.schemas.hardware import AcceleratorStatus
+from src.schemas.hardware import AcceleratorType
+from src.schemas.hardware import CPUArchitecture
+from src.schemas.hardware import CPUInfo
+from src.schemas.hardware import HardwareDetectionResult
+from src.schemas.hardware import MemoryInfo
+from src.schemas.hardware import PlatformInfo
+from src.schemas.hardware import PlatformVendor
 
 
 def create_mock_hardware_result() -> HardwareDetectionResult:
@@ -93,16 +90,23 @@ class TestDetectEndpoint(TestHardwareEndpoints):
 
     def test_detect_hardware_returns_200(self):
         """Test that hardware detection endpoint returns 200."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_detect_hardware_returns_valid_structure(self):
         """Test that hardware detection returns valid JSON structure."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
         data = response.json()
 
-        # Check required fields exist
+        # Assert: check required fields exist
         self.assertIn("cpu", data)
         self.assertIn("memory", data)
         self.assertIn("platform", data)
@@ -112,9 +116,13 @@ class TestDetectEndpoint(TestHardwareEndpoints):
 
     def test_detect_hardware_cpu_structure(self):
         """Test that CPU info has correct structure."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
         cpu = response.json()["cpu"]
 
+        # Assert
         self.assertIn("architecture", cpu)
         self.assertIn("model_name", cpu)
         self.assertIn("vendor", cpu)
@@ -124,18 +132,26 @@ class TestDetectEndpoint(TestHardwareEndpoints):
 
     def test_detect_hardware_memory_structure(self):
         """Test that memory info has correct structure."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
         memory = response.json()["memory"]
 
+        # Assert
         self.assertIn("total_gb", memory)
         self.assertIn("available_gb", memory)
         self.assertIn("used_percent", memory)
 
     def test_detect_hardware_platform_structure(self):
         """Test that platform info has correct structure."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
         platform = response.json()["platform"]
 
+        # Assert
         self.assertIn("vendor", platform)
         self.assertIn("board_name", platform)
         self.assertIn("os_name", platform)
@@ -143,9 +159,13 @@ class TestDetectEndpoint(TestHardwareEndpoints):
 
     def test_detect_hardware_accelerators_structure(self):
         """Test that accelerators list has correct structure."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
         accelerators = response.json()["accelerators"]
 
+        # Assert
         self.assertIsInstance(accelerators, list)
         self.assertGreater(len(accelerators), 0, "Should have at least CPU accelerator")
 
@@ -157,17 +177,23 @@ class TestDetectEndpoint(TestHardwareEndpoints):
 
     def test_detect_hardware_refresh_parameter(self):
         """Test that refresh parameter is accepted."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect?refresh=true")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_detect_hardware_refresh_false(self):
         """Test that refresh=false uses cached data."""
-        # First call
-        response1 = self.client.get("/api/v1/hardware/detect")
-        # Second call with refresh=false
-        response2 = self.client.get("/api/v1/hardware/detect?refresh=false")
+        # Arrange
 
+        # Act
+        response1 = self.client.get("/api/v1/hardware/detect")  # first call
+        response2 = self.client.get("/api/v1/hardware/detect?refresh=false")  # cached
+
+        # Assert
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(response2.status_code, 200)
 
@@ -177,15 +203,23 @@ class TestCPUEndpoint(TestHardwareEndpoints):
 
     def test_get_cpu_returns_200(self):
         """Test that CPU endpoint returns 200."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/cpu")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_get_cpu_returns_cpu_info(self):
         """Test that CPU endpoint returns CPU info directly."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/cpu")
         data = response.json()
 
+        # Assert
         self.assertIn("architecture", data)
         self.assertIn("model_name", data)
         self.assertIn("cores", data)
@@ -193,9 +227,13 @@ class TestCPUEndpoint(TestHardwareEndpoints):
 
     def test_get_cpu_valid_architecture(self):
         """Test that CPU architecture is a valid value."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/cpu")
         arch = response.json()["architecture"]
 
+        # Assert
         valid_architectures = ["x86_64", "x86", "arm64", "armv7", "armv8", "unknown"]
         self.assertIn(arch, valid_architectures)
 
@@ -205,24 +243,36 @@ class TestPlatformEndpoint(TestHardwareEndpoints):
 
     def test_get_platform_returns_200(self):
         """Test that platform endpoint returns 200."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/platform")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_get_platform_returns_platform_info(self):
         """Test that platform endpoint returns platform info directly."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/platform")
         data = response.json()
 
+        # Assert
         self.assertIn("vendor", data)
         self.assertIn("board_name", data)
         self.assertIn("os_name", data)
 
     def test_get_platform_valid_vendor(self):
         """Test that platform vendor is a valid value."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/platform")
         vendor = response.json()["vendor"]
 
+        # Assert
         valid_vendors = [
             "intel",
             "amd",
@@ -244,38 +294,58 @@ class TestAcceleratorsEndpoint(TestHardwareEndpoints):
 
     def test_get_accelerators_returns_200(self):
         """Test that accelerators endpoint returns 200."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_get_accelerators_returns_list(self):
         """Test that accelerators endpoint returns a list."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators")
         data = response.json()
 
+        # Assert
         self.assertIsInstance(data, list)
 
     def test_get_accelerators_includes_cpu(self):
         """Test that CPU is always included in accelerators."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators")
         accelerators = response.json()
 
+        # Assert
         cpu_types = [acc["type"] for acc in accelerators]
         self.assertIn("cpu", cpu_types)
 
     def test_get_accelerators_valid_status(self):
         """Test that all accelerators have valid status."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators")
         accelerators = response.json()
 
+        # Assert
         valid_statuses = ["available", "unavailable", "driver_missing", "not_detected", "error"]
         for acc in accelerators:
             self.assertIn(acc["status"], valid_statuses)
 
     def test_get_accelerators_refresh_parameter(self):
         """Test that refresh parameter is accepted."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators?refresh=true")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
 
@@ -284,38 +354,57 @@ class TestRecommendedEndpoint(TestHardwareEndpoints):
 
     def test_get_recommended_returns_200(self):
         """Test that recommended endpoint returns 200."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/recommended")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
 
     def test_get_recommended_returns_dict(self):
         """Test that recommended endpoint returns a dictionary."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/recommended")
         data = response.json()
 
+        # Assert
         self.assertIsInstance(data, dict)
 
     def test_get_recommended_has_required_fields(self):
         """Test that recommended response has required fields."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/recommended")
         data = response.json()
 
+        # Assert
         self.assertIn("recommended", data)
         self.assertIn("available_accelerators", data)
 
     def test_get_recommended_available_is_list(self):
         """Test that available_accelerators is a list."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/recommended")
         data = response.json()
 
+        # Assert
         self.assertIsInstance(data["available_accelerators"], list)
 
     def test_get_recommended_has_value(self):
         """Test that a recommended accelerator is provided."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/recommended")
         data = response.json()
 
-        # Should have at least CPU as recommended
+        # Assert: should have at least CPU as recommended
         self.assertIsNotNone(data["recommended"])
 
 
@@ -325,17 +414,24 @@ class TestErrorHandling(TestHardwareEndpoints):
     @patch("src.services.hardware.hardware_detection_service.detect_all")
     def test_detect_handles_service_error(self, mock_detect):
         """Test that detection endpoint handles service errors gracefully."""
+        # Arrange
         mock_detect.side_effect = Exception("Detection failed")
 
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
 
+        # Assert
         self.assertEqual(response.status_code, 500)
         self.assertIn("detail", response.json())
 
     def test_invalid_endpoint_returns_404(self):
         """Test that invalid endpoints return 404."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/invalid")
 
+        # Assert
         self.assertEqual(response.status_code, 404)
 
 
@@ -344,24 +440,40 @@ class TestResponseTypes(TestHardwareEndpoints):
 
     def test_detect_returns_json(self):
         """Test that detect endpoint returns JSON."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/detect")
 
+        # Assert
         self.assertEqual(response.headers["content-type"], "application/json")
 
     def test_cpu_returns_json(self):
         """Test that CPU endpoint returns JSON."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/cpu")
 
+        # Assert
         self.assertEqual(response.headers["content-type"], "application/json")
 
     def test_platform_returns_json(self):
         """Test that platform endpoint returns JSON."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/platform")
 
+        # Assert
         self.assertEqual(response.headers["content-type"], "application/json")
 
     def test_accelerators_returns_json(self):
         """Test that accelerators endpoint returns JSON."""
+        # Arrange
+
+        # Act
         response = self.client.get("/api/v1/hardware/accelerators")
 
+        # Assert
         self.assertEqual(response.headers["content-type"], "application/json")

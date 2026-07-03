@@ -61,6 +61,7 @@ class FakeDetectionPipeline:
 
 
 def test_detect_uses_sdk_pipeline_and_returns_legacy_shape(monkeypatch):
+    # Arrange
     monkeypatch.setattr(
         "src.services.object_detection.build_pipeline",
         lambda **kwargs: FakeDetectionPipeline(),
@@ -69,8 +70,10 @@ def test_detect_uses_sdk_pipeline_and_returns_legacy_shape(monkeypatch):
     service = ObjectDetectionService(model_name="fake.pt")
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
+    # Act
     detections = service.detect(frame)
 
+    # Assert
     assert len(detections) == 1
     assert detections[0]["bbox"] == [10, 20, 30, 40]
     assert detections[0]["confidence"] == 0.8
@@ -79,6 +82,7 @@ def test_detect_uses_sdk_pipeline_and_returns_legacy_shape(monkeypatch):
 
 
 def test_detect_applies_roi_offset_with_sdk_output(monkeypatch):
+    # Arrange
     monkeypatch.setattr(
         "src.services.object_detection.build_pipeline",
         lambda **kwargs: FakeDetectionPipeline(),
@@ -87,12 +91,15 @@ def test_detect_applies_roi_offset_with_sdk_output(monkeypatch):
     service = ObjectDetectionService(model_name="fake.pt")
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
+    # Act
     detections = service.detect(frame, roi={"x": 5, "y": 7, "width": 50, "height": 50})
 
+    # Assert
     assert detections[0]["bbox"] == [15, 27, 35, 47]
 
 
 def test_detect_batch_uses_pipeline_batch_and_keeps_contract(monkeypatch):
+    # Arrange
     monkeypatch.setattr(
         "src.services.object_detection.build_pipeline",
         lambda **kwargs: FakeDetectionPipeline(),
@@ -101,14 +108,17 @@ def test_detect_batch_uses_pipeline_batch_and_keeps_contract(monkeypatch):
     service = ObjectDetectionService(model_name="fake.pt")
     frames = [np.zeros((32, 32, 3), dtype=np.uint8) for _ in range(3)]
 
+    # Act
     results = service.detect_batch(frames)
 
+    # Assert
     assert len(results) == 3
     assert results[0][0]["bbox"] == [1, 2, 3, 4]
     assert results[0][0]["class_name"] == "car"
 
 
 def test_engine_property_still_exposes_underlying_engine(monkeypatch):
+    # Arrange
     monkeypatch.setattr(
         "src.services.object_detection.build_pipeline",
         lambda **kwargs: FakeDetectionPipeline(),
@@ -116,5 +126,9 @@ def test_engine_property_still_exposes_underlying_engine(monkeypatch):
 
     service = ObjectDetectionService(model_name="fake.pt")
 
-    assert service.engine is not None
-    assert service.engine.is_loaded is True
+    # Act
+    engine = service.engine
+
+    # Assert
+    assert engine is not None
+    assert engine.is_loaded is True

@@ -29,9 +29,12 @@ class AuthFeatureFlagEndpointTests(TestCase):
         super().tearDownClass()
 
     def test_protected_endpoint_bypasses_auth_when_feature_flag_is_disabled(self):
+        # Arrange
         with patch("src.core.security.oauth2.settings.AUTH_ENABLED", False):
+            # Act
             response = self.client.get("/protected")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["id"], "dev-user")
@@ -39,13 +42,17 @@ class AuthFeatureFlagEndpointTests(TestCase):
         self.assertIn("admin", data["roles"])
 
     def test_protected_endpoint_returns_401_when_enabled_and_token_missing(self):
+        # Arrange
         with patch("src.core.security.oauth2.settings.AUTH_ENABLED", True):
+            # Act
             response = self.client.get("/protected")
 
+        # Assert
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json().get("detail"), "Not authenticated")
 
     def test_protected_endpoint_accepts_valid_token_when_enabled(self):
+        # Arrange
         token_payload = TokenPayload(
             sub="user-123",
             email="user@example.com",
@@ -60,8 +67,10 @@ class AuthFeatureFlagEndpointTests(TestCase):
             patch("src.core.security.oauth2.settings.AUTH_ENABLED", True),
             patch("src.core.security.oauth2.decode_token", return_value=token_payload) as mock_decode,
         ):
+            # Act
             response = self.client.get("/protected", headers={"Authorization": "Bearer fake.jwt.token"})
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["username"], "user123")
         mock_decode.assert_called_once_with("fake.jwt.token")

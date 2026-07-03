@@ -82,10 +82,13 @@ class InferenceWorkersEndpointTests(TestCase):
 
     @patch("src.api.endpoints.inference_workers.inference_worker_manager.list_stats")
     def test_list_workers_returns_manager_stats(self, list_stats_mock):
+        # Arrange
         list_stats_mock.return_value = [{"stream_id": 1, "runtime": "yolo", "running": True}]
 
+        # Act
         response = self.client.get("/api/v1/inference-workers/")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0]["runtime"], "yolo")
 
@@ -93,12 +96,15 @@ class InferenceWorkersEndpointTests(TestCase):
     @patch("src.api.endpoints.inference_workers.inference_worker_manager.start_worker")
     @patch("src.api.endpoints.inference_workers.inference_runtime_service.get")
     def test_start_worker_enables_detection_and_starts_worker(self, runtime_get_mock, start_worker_mock, stats_mock):
+        # Arrange
         stream = self._seed_stream(metadata={})
         runtime_get_mock.return_value = object()
         stats_mock.return_value = {"stream_id": stream.id, "running": True}
 
+        # Act
         response = self.client.post(f"/api/v1/inference-workers/{stream.id}/start")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["worker"]["running"], True)
         stored = self._reload_stream(stream.id)
@@ -114,10 +120,12 @@ class InferenceWorkersEndpointTests(TestCase):
         restart_worker_mock,
         stats_mock,
     ):
+        # Arrange
         stream = self._seed_stream(metadata={})
         runtime_get_mock.return_value = object()
         stats_mock.return_value = {"stream_id": stream.id, "runtime": "onnxruntime", "running": True}
 
+        # Act
         response = self.client.patch(
             f"/api/v1/inference-workers/{stream.id}/config",
             json={
@@ -130,6 +138,7 @@ class InferenceWorkersEndpointTests(TestCase):
             },
         )
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         stored = self._reload_stream(stream.id)
         self.assertEqual(stored.stream_metadata["detection_model"], "yolo11n")
@@ -143,10 +152,13 @@ class InferenceWorkersEndpointTests(TestCase):
 
     @patch("src.api.endpoints.inference_workers.inference_worker_manager.warmup_worker")
     def test_warmup_worker_returns_metrics(self, warmup_mock):
+        # Arrange
         warmup_mock.return_value = {"iterations": 3, "avg_inference_ms": 5.0}
 
+        # Act
         response = self.client.post("/api/v1/inference-workers/10/warmup", json={"iterations": 3})
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["warmup"]["avg_inference_ms"], 5.0)
         warmup_mock.assert_called_once_with(10, 3)
@@ -154,13 +166,16 @@ class InferenceWorkersEndpointTests(TestCase):
     @patch("src.api.endpoints.inference_workers.inference_worker_manager.restart_all")
     @patch("src.api.endpoints.inference_workers.inference_runtime_service.get")
     def test_restart_all_only_uses_active_streams(self, runtime_get_mock, restart_all_mock):
+        # Arrange
         active_stream = self._seed_stream(status="active")
         self._seed_stream(status="stopped")
         runtime_get_mock.return_value = object()
         restart_all_mock.return_value = 1
 
+        # Act
         response = self.client.post("/api/v1/inference-workers/actions/restart-all")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["restarted_workers"], 1)
         active_streams = restart_all_mock.call_args.args[0]

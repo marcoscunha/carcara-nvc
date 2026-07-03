@@ -49,6 +49,7 @@ def _config(task_type: str = "detect") -> WorkerConfig:
 
 
 def test_build_pipeline_uses_sdk_constructor(monkeypatch):
+    # Arrange
     expected = DetectionResult(
         detections=[],
         latency_ms=1.0,
@@ -63,8 +64,11 @@ def test_build_pipeline_uses_sdk_constructor(monkeypatch):
     monkeypatch.setattr("src.services.inference_worker.build_sdk_pipeline", _fake_build)
 
     worker = InferenceWorker(_config(task_type="detect"))
+
+    # Act
     pipe = worker._build_pipeline()
 
+    # Assert
     assert pipe is not None
     assert calls["task"] == "object-detection"
     assert calls["model"] == "yolov8n.pt"
@@ -72,6 +76,7 @@ def test_build_pipeline_uses_sdk_constructor(monkeypatch):
 
 
 def test_run_inference_falls_back_to_pipeline_when_track_unavailable():
+    # Arrange
     result = DetectionResult(
         detections=[
             Detection(
@@ -91,8 +96,10 @@ def test_run_inference_falls_back_to_pipeline_when_track_unavailable():
     worker._pipeline = pipe
     worker._engine = pipe._engine
 
+    # Act
     detections, inference_ms = worker._run_inference(np.zeros((10, 10, 3), dtype=np.uint8))
 
+    # Assert
     assert inference_ms == 6.5
     assert detections[0]["bbox"] == [1, 2, 3, 4]
     assert detections[0]["confidence"] == 0.87
@@ -100,6 +107,7 @@ def test_run_inference_falls_back_to_pipeline_when_track_unavailable():
 
 
 def test_run_inference_uses_engine_track_when_available():
+    # Arrange
     class _TrackResult:
         detections = [{"bbox": [0, 0, 1, 1], "confidence": 0.99, "class_name": "car", "class_id": 2}]
         inference_time_ms = 4.2
@@ -120,7 +128,9 @@ def test_run_inference_uses_engine_track_when_available():
     )
     worker._engine = SimpleNamespace(track=lambda frame, persist=True: _TrackResult())
 
+    # Act
     detections, inference_ms = worker._run_inference(np.zeros((10, 10, 3), dtype=np.uint8))
 
+    # Assert
     assert inference_ms == 4.2
     assert detections[0]["class_name"] == "car"

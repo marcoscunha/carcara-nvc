@@ -12,12 +12,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
 from src.core.security.oauth2 import settings as auth_settings
 from src.db.base_class import Base
 from src.db.session import get_db
 from src.main import app
-from src.models.alarm import Alarm, AlarmEvent, AlarmZone
+from src.models.alarm import Alarm
+from src.models.alarm import AlarmEvent
+from src.models.alarm import AlarmZone
 from src.models.camera import Camera
 from src.models.stream import Stream
 
@@ -115,16 +116,26 @@ class AlarmEndpointTests(TestCase):
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_create_alarm(self, mock_reload):
+        # Arrange
+
+        # Act
         alarm = self._create_alarm()
+
+        # Assert
         self.assertEqual(alarm["name"], "Test alarm")
         self.assertEqual(alarm["stream_id"], self.stream_id)
         self.assertEqual(alarm["trigger_type"], "class_present")
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_list_alarms(self, mock_reload):
+        # Arrange
         self._create_alarm(name="A1")
         self._create_alarm(name="A2")
+
+        # Act
         resp = self.client.get("/api/v1/alarms/")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         names = [a["name"] for a in resp.json()]
         self.assertIn("A1", names)
@@ -132,22 +143,37 @@ class AlarmEndpointTests(TestCase):
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_get_alarm(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
+
+        # Act
         resp = self.client.get(f"/api/v1/alarms/{alarm['id']}")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["id"], alarm["id"])
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_update_alarm(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
+
+        # Act
         resp = self.client.put(f"/api/v1/alarms/{alarm['id']}", json={"name": "Updated"})
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["name"], "Updated")
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_delete_alarm(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
+
+        # Act
         resp = self.client.delete(f"/api/v1/alarms/{alarm['id']}")
+
+        # Assert
         self.assertEqual(resp.status_code, 204)
         resp2 = self.client.get(f"/api/v1/alarms/{alarm['id']}")
         self.assertEqual(resp2.status_code, 404)
@@ -156,30 +182,45 @@ class AlarmEndpointTests(TestCase):
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_list_events(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
         self._create_event(alarm["id"])
         self._create_event(alarm["id"])
+
+        # Act
         resp = self.client.get("/api/v1/alarms/events")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         self.assertGreaterEqual(len(resp.json()), 2)
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_list_events_filtered_by_alarm(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
         self._create_event(alarm["id"])
+
+        # Act
         resp = self.client.get(f"/api/v1/alarms/events?alarm_id={alarm['id']}")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         for ev in resp.json():
             self.assertEqual(ev["alarm_id"], alarm["id"])
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_ack_event(self, mock_reload):
+        # Arrange
         alarm = self._create_alarm()
         ev = self._create_event(alarm["id"], state="open")
+
+        # Act
         resp = self.client.post(
             f"/api/v1/alarms/events/{ev.id}/ack",
             json={"acknowledged_by": "tester", "note": "all clear"},
         )
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["state"], "acknowledged")
@@ -188,19 +229,24 @@ class AlarmEndpointTests(TestCase):
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_delete_event_no_snapshot(self, mock_reload):
         """DELETE /events/{id} — event with no snapshot file."""
+        # Arrange
         alarm = self._create_alarm()
         ev = self._create_event(alarm["id"])
+
+        # Act
         resp = self.client.delete(f"/api/v1/alarms/events/{ev.id}")
+
+        # Assert
         self.assertEqual(resp.status_code, 204)
-        # Confirm it's gone
         resp2 = self.client.get(f"/api/v1/alarms/events/{ev.id}")
         self.assertEqual(resp2.status_code, 404)
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_delete_event_with_snapshot_file(self, mock_reload):
         """DELETE /events/{id} — removes snapshot file when it exists."""
-        import tempfile
+        # Arrange
         import os
+        import tempfile
 
         alarm = self._create_alarm()
         ev = self._create_event(alarm["id"])
@@ -213,14 +259,17 @@ class AlarmEndpointTests(TestCase):
         self.db.query(AlarmEvent).filter(AlarmEvent.id == ev.id).update({"snapshot_path": snap_path})
         self.db.commit()
 
+        # Act
         resp = self.client.delete(f"/api/v1/alarms/events/{ev.id}")
+
+        # Assert
         self.assertEqual(resp.status_code, 204)
-        # File must be cleaned up
         self.assertFalse(os.path.isfile(snap_path), "Snapshot file should be deleted")
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_delete_event_with_missing_snapshot_file(self, mock_reload):
         """DELETE /events/{id} — succeeds even if snapshot path points to a missing file."""
+        # Arrange
         alarm = self._create_alarm()
         ev = self._create_event(alarm["id"])
 
@@ -229,23 +278,36 @@ class AlarmEndpointTests(TestCase):
         )
         self.db.commit()
 
+        # Act
         resp = self.client.delete(f"/api/v1/alarms/events/{ev.id}")
+
+        # Assert
         self.assertEqual(resp.status_code, 204)
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_delete_event_not_found(self, mock_reload):
         """DELETE /events/{id} — 404 for unknown event."""
+        # Arrange
+
+        # Act
         resp = self.client.delete("/api/v1/alarms/events/999999")
+
+        # Assert
         self.assertEqual(resp.status_code, 404)
 
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_has_snapshot_false_when_file_missing(self, mock_reload):
         """has_snapshot computed field is False when file doesn't exist on disk."""
+        # Arrange
         alarm = self._create_alarm()
         ev = self._create_event(alarm["id"])
         self.db.query(AlarmEvent).filter(AlarmEvent.id == ev.id).update({"snapshot_path": "/tmp/nonexistent_xyz.jpg"})
         self.db.commit()
+
+        # Act
         resp = self.client.get("/api/v1/alarms/events")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         event_data = next((e for e in resp.json() if e["id"] == ev.id), None)
         self.assertIsNotNone(event_data)
@@ -254,6 +316,7 @@ class AlarmEndpointTests(TestCase):
     @patch("src.api.endpoints.alarms._notify_engine_reload")
     def test_has_snapshot_true_when_file_exists(self, mock_reload):
         """has_snapshot computed field is True when file exists on disk."""
+        # Arrange
         import os
         import tempfile
 
@@ -276,7 +339,10 @@ class AlarmEndpointTests(TestCase):
         self.db.commit()
         self.db.refresh(ev)
 
+        # Act
         resp = self.client.get("/api/v1/alarms/events")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         event_data = next((e for e in resp.json() if e["id"] == ev.id), None)
         self.assertIsNotNone(event_data)
@@ -287,6 +353,9 @@ class AlarmEndpointTests(TestCase):
     # ── Zones ─────────────────────────────────────────────────────────────────
 
     def test_create_zone(self):
+        # Arrange
+
+        # Act
         resp = self.client.post(
             "/api/v1/alarms/zones",
             json={
@@ -295,10 +364,13 @@ class AlarmEndpointTests(TestCase):
                 "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]],
             },
         )
+
+        # Assert
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.json()["name"], "Zone A")
 
     def test_list_zones(self):
+        # Arrange
         self.client.post(
             "/api/v1/alarms/zones",
             json={
@@ -307,12 +379,17 @@ class AlarmEndpointTests(TestCase):
                 "polygon": [[0, 0], [1, 0], [1, 1], [0, 1]],
             },
         )
+
+        # Act
         resp = self.client.get(f"/api/v1/alarms/zones?stream_id={self.stream_id}")
+
+        # Assert
         self.assertEqual(resp.status_code, 200)
         names = [z["name"] for z in resp.json()]
         self.assertIn("Zone B", names)
 
     def test_delete_zone(self):
+        # Arrange
         resp = self.client.post(
             "/api/v1/alarms/zones",
             json={
@@ -322,5 +399,9 @@ class AlarmEndpointTests(TestCase):
             },
         )
         zone_id = resp.json()["id"]
+
+        # Act
         del_resp = self.client.delete(f"/api/v1/alarms/zones/{zone_id}")
+
+        # Assert
         self.assertEqual(del_resp.status_code, 204)

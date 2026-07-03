@@ -3,6 +3,7 @@ from src.services import runtime_catalog
 
 
 def test_list_runtimes_prefers_tensorrt_when_available(monkeypatch):
+    # Arrange
     monkeypatch.setattr(
         runtime_catalog,
         "_detect_hardware",
@@ -25,8 +26,10 @@ def test_list_runtimes_prefers_tensorrt_when_available(monkeypatch):
 
     monkeypatch.setattr(runtime_catalog, "_support_torch_cuda", lambda: runtime_catalog.RuntimeSupport(True))
 
+    # Act
     catalog = runtime_catalog.list_runtimes()
 
+    # Assert
     assert catalog.recommended_runtime == "tensorrt"
     assert [item.id for item in catalog.options] == ["yolo", "onnxruntime", "tensorrt"]
     assert catalog.options[0].variants[1].available is True
@@ -34,6 +37,7 @@ def test_list_runtimes_prefers_tensorrt_when_available(monkeypatch):
 
 
 def test_list_runtimes_marks_tensorrt_unavailable_without_nvidia(monkeypatch):
+    # Arrange
     monkeypatch.setattr(runtime_catalog, "_detect_hardware", lambda: {HardwareAccelerator.CPU: True})
     monkeypatch.setattr(runtime_catalog, "_module_available", lambda name: name in {"ultralytics", "torch"})
     monkeypatch.setattr(
@@ -43,7 +47,10 @@ def test_list_runtimes_marks_tensorrt_unavailable_without_nvidia(monkeypatch):
     )
     monkeypatch.setattr(runtime_catalog, "_onnx_providers", lambda: [])
 
+    # Act
     catalog = runtime_catalog.list_runtimes()
+
+    # Assert
     tensorrt = next(item for item in catalog.options if item.id == "tensorrt")
     onnxruntime = next(item for item in catalog.options if item.id == "onnxruntime")
 

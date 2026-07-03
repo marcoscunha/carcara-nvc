@@ -43,25 +43,31 @@ def _raw(text: str, metadata: dict | None = None) -> InferenceResult:
 
 
 def test_vlm_pipeline_returns_vlm_result():
+    # Arrange
     engine = MagicMock()
     engine.infer.return_value = _raw("a person on a bike")
     pipe = VLMPipeline(engine=engine, plan=_make_plan())
 
+    # Act
     result = pipe(np.zeros((32, 32, 3), dtype=np.uint8))
 
+    # Assert
     assert isinstance(result, VLMResult)
     assert result.text == "a person on a bike"
     assert result.runtime_info.runtime == "ollama_vlm"
 
 
 def test_vlm_pipeline_forwards_prompt_and_kwargs_to_engine():
+    # Arrange
     engine = MagicMock()
     engine.infer.return_value = _raw("ok")
     pipe = VLMPipeline(engine=engine, plan=_make_plan())
-
     frame = np.zeros((16, 16, 3), dtype=np.uint8)
+
+    # Act
     pipe(frame, prompt="describe image", temperature=0.2)
 
+    # Assert
     engine.infer.assert_called_once()
     args, kwargs = engine.infer.call_args
     assert args[0] is frame
@@ -70,20 +76,26 @@ def test_vlm_pipeline_forwards_prompt_and_kwargs_to_engine():
 
 
 def test_vlm_pipeline_extracts_tokens_used_from_metadata():
+    # Arrange
     engine = MagicMock()
     engine.infer.return_value = _raw("result", metadata={"tokens_used": 321})
     pipe = VLMPipeline(engine=engine, plan=_make_plan())
 
+    # Act
     result = pipe(np.zeros((8, 8, 3), dtype=np.uint8))
 
+    # Assert
     assert result.tokens_used == 321
 
 
 def test_vlm_pipeline_uses_total_tokens_fallback():
+    # Arrange
     engine = MagicMock()
     engine.infer.return_value = _raw("result", metadata={"total_tokens": 77})
     pipe = VLMPipeline(engine=engine, plan=_make_plan())
 
+    # Act
     result = pipe(np.zeros((8, 8, 3), dtype=np.uint8))
 
+    # Assert
     assert result.tokens_used == 77

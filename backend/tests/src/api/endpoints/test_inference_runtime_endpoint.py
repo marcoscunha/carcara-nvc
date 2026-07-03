@@ -82,6 +82,7 @@ class InferenceRuntimeEndpointTests(TestCase):
         running_ids_mock,
         affected_mock,
     ):
+        # Arrange
         stream = self._seed_stream()
         get_mock.return_value = type(
             "Config",
@@ -106,8 +107,10 @@ class InferenceRuntimeEndpointTests(TestCase):
         running_ids_mock.return_value = [stream.id]
         affected_mock.return_value = 1
 
+        # Act
         response = self.client.get("/api/v1/inference-runtime/")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["affected_running_workers"], 1)
         self.assertEqual(response.json()["available_runtimes"], ["yolo", "onnxruntime"])
@@ -129,6 +132,7 @@ class InferenceRuntimeEndpointTests(TestCase):
         affected_mock,
         restart_worker_mock,
     ):
+        # Arrange
         inherited = self._seed_stream(metadata={})
         overridden = self._seed_stream(metadata={"detection_runtime": "yolo"})
 
@@ -156,6 +160,7 @@ class InferenceRuntimeEndpointTests(TestCase):
         running_ids_mock.return_value = [inherited.id, overridden.id]
         affected_mock.return_value = 1
 
+        # Act
         response = self.client.put(
             "/api/v1/inference-runtime/",
             json={
@@ -166,6 +171,7 @@ class InferenceRuntimeEndpointTests(TestCase):
             },
         )
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["restarted_workers"], 1)
         restart_worker_mock.assert_called_once()
@@ -175,9 +181,12 @@ class InferenceRuntimeEndpointTests(TestCase):
 
     @patch("src.api.endpoints.inference_runtime.inference_runtime_service.update")
     def test_update_runtime_returns_400_on_invalid_runtime(self, update_mock):
+        # Arrange
         update_mock.side_effect = ValueError("Unsupported runtime: invalid")
 
+        # Act
         response = self.client.put("/api/v1/inference-runtime/", json={"runtime": "invalid"})
 
+        # Assert
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Unsupported runtime: invalid")

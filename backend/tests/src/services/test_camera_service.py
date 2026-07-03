@@ -1,8 +1,8 @@
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from src.services.camera_service import CameraService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -45,6 +45,7 @@ def _identity(device_id, *, vendor="046d", product="0825", serial=None, sysfs_pa
 
 class CameraServiceIdentityResolutionTests(TestCase):
     def test_resolve_local_camera_prefers_usb_serial_number(self):
+        # Arrange
         scanned_cameras = [
             {
                 "device_id": 2,
@@ -70,6 +71,7 @@ class CameraServiceIdentityResolutionTests(TestCase):
             patch.object(CameraService, "describe_local_device", return_value=None),
             patch.object(CameraService, "scan_local_camera_identities", return_value=scanned_cameras),
         ):
+            # Act
             resolved = CameraService.resolve_local_camera(
                 device_path="/dev/v4l/by-id/usb-stale-video-index0",
                 usb_vendor_id="046d",
@@ -77,11 +79,13 @@ class CameraServiceIdentityResolutionTests(TestCase):
                 usb_serial_number="SER123",
             )
 
+        # Assert
         self.assertIsNotNone(resolved)
         self.assertEqual(resolved["device_id"], 2)
         self.assertEqual(resolved["usb_serial_number"], "SER123")
 
     def test_resolve_local_camera_rejects_ambiguous_vendor_product_match(self):
+        # Arrange
         scanned_cameras = [
             {
                 "device_id": 2,
@@ -107,14 +111,17 @@ class CameraServiceIdentityResolutionTests(TestCase):
             patch.object(CameraService, "describe_local_device", return_value=None),
             patch.object(CameraService, "scan_local_camera_identities", return_value=scanned_cameras),
         ):
+            # Act
             resolved = CameraService.resolve_local_camera(
                 usb_vendor_id="046d",
                 usb_product_id="0825",
             )
 
+        # Assert
         self.assertIsNone(resolved)
 
     def test_resolve_local_camera_uses_exact_persistent_path_when_unique(self):
+        # Arrange
         scanned_cameras = [
             {
                 "device_id": 1,
@@ -140,10 +147,12 @@ class CameraServiceIdentityResolutionTests(TestCase):
             patch.object(CameraService, "describe_local_device", return_value=None),
             patch.object(CameraService, "scan_local_camera_identities", return_value=scanned_cameras),
         ):
+            # Act
             resolved = CameraService.resolve_local_camera(
                 device_path="/dev/v4l/by-id/usb-cam-b-video-index0",
             )
 
+        # Assert
         self.assertIsNotNone(resolved)
         self.assertEqual(resolved["device_id"], 4)
         self.assertEqual(resolved["device_path"], "/dev/v4l/by-id/usb-cam-b-video-index0")
@@ -212,6 +221,7 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
         (metadata). Both nodes have different device_path suffixes but share the
         same physical identity. Only one entry must be returned.
         """
+        # Arrange
         identity_node0 = self._make_identity(0, serial="SER001", index=0)
         identity_node1 = self._make_identity(1, serial="SER001", index=1)
 
@@ -229,13 +239,16 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
             patch.object(CameraService, "get_camera_friendly_name", return_value="Logitech C920"),
             patch.object(CameraService, "get_supported_resolutions", return_value=[(640, 480), (1280, 720)]),
         ):
+            # Act
             cameras = CameraService.scan_local_cameras(max_devices=10)
 
+        # Assert
         self.assertEqual(len(cameras), 1, "Expected exactly one entry for the physical camera")
         self.assertEqual(cameras[0]["device_id"], 0)
 
     def test_two_different_cameras_both_returned(self):
         """Two distinct cameras must both appear in scan results."""
+        # Arrange
         identity_cam_a = self._make_identity(0, serial="SER001", physical="usb-0:1", sysfs_parent="/sys/usb/1")
         identity_cam_b = self._make_identity(
             2, vendor="1234", product="5678", serial="SER002", physical="usb-0:2", sysfs_parent="/sys/usb/2"
@@ -259,8 +272,10 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
             patch.object(CameraService, "get_camera_friendly_name", return_value=None),
             patch.object(CameraService, "get_supported_resolutions", return_value=[]),
         ):
+            # Act
             cameras = CameraService.scan_local_cameras(max_devices=10)
 
+        # Assert
         self.assertEqual(len(cameras), 2, "Expected one entry per distinct physical camera")
         device_ids = {c["device_id"] for c in cameras}
         self.assertEqual(device_ids, {0, 2})
@@ -271,6 +286,7 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
         sysfs parent path (same for all nodes of the same device), NOT
         device_path which differs per node (index0 / index1).
         """
+        # Arrange
         # Same physical device: same sysfs parent, different device_path suffixes
         identity_node0 = self._make_identity(0, serial=None, index=0, sysfs_parent="/sys/bus/usb/devices/1-1")
         identity_node1 = self._make_identity(1, serial=None, index=1, sysfs_parent="/sys/bus/usb/devices/1-1")
@@ -295,8 +311,10 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
             patch.object(CameraService, "get_camera_friendly_name", return_value=None),
             patch.object(CameraService, "get_supported_resolutions", return_value=[]),
         ):
+            # Act
             cameras = CameraService.scan_local_cameras(max_devices=10)
 
+        # Assert
         self.assertEqual(
             len(cameras),
             1,
@@ -305,6 +323,7 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
 
     def test_non_capture_device_is_excluded(self):
         """Nodes that fail is_capture_device must never appear in results."""
+        # Arrange
         with (
             patch("glob.glob", return_value=["/dev/video0", "/dev/video1"]),
             patch.object(
@@ -323,8 +342,10 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
             patch.object(CameraService, "get_camera_friendly_name", return_value=None),
             patch.object(CameraService, "get_supported_resolutions", return_value=[]),
         ):
+            # Act
             cameras = CameraService.scan_local_cameras(max_devices=10)
 
+        # Assert
         self.assertEqual(len(cameras), 1)
         self.assertEqual(cameras[0]["device_id"], 0)
 
@@ -334,16 +355,20 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
         the function must return True (permissive) so that cameras are not silently
         blocked. OpenCV / downstream operations handle invalid nodes.
         """
+        # Arrange
         with (
             patch("shutil.which", return_value=None),
             patch("os.path.isfile", return_value=False),
         ):
+            # Act
             result = CameraService.is_capture_device(device_id=0)
 
+        # Assert
         self.assertTrue(result, "Should default to True when v4l2-ctl and sysfs caps are unavailable")
 
     def test_is_capture_device_uses_sysfs_cap_bitmask_when_v4l2_ctl_absent(self):
         """When v4l2-ctl is absent but sysfs capabilities exist, read the bitmask."""
+        # Arrange
         with (
             patch("shutil.which", return_value=None),
             patch("os.path.basename", return_value="video0"),
@@ -360,8 +385,10 @@ class ScanLocalCamerasDeduplicationTests(TestCase):
                 ),
             ),
         ):
+            # Act
             result = CameraService.is_capture_device(device_id=0)
 
+        # Assert
         self.assertTrue(result)
 
 
@@ -410,6 +437,9 @@ class CameraServiceScanDeduplicationTests(TestCase):
 
     def test_two_nodes_same_serial_deduplicated_to_one(self):
         """video0 (capture) + video1 with same serial -> 1 result."""
+        # Arrange
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -420,11 +450,16 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: True},
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["device_id"], 0)
 
     def test_two_different_serials_both_appear(self):
         """Two physically distinct cameras with different serials -> 2 results."""
+        # Arrange
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -435,13 +470,18 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: True},
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 2)
 
     # --- deduplication by sysfs parent (no serial) ---
 
     def test_two_nodes_same_sysfs_parent_no_serial_deduplicated(self):
         """Same sysfs parent, no serial -> shadow node deduplication."""
+        # Arrange
         shared_sysfs = "/sys/bus/usb/devices/1-1/1-1:1.0"
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -452,10 +492,15 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: True},
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 1, "Shadow node must be deduplicated via shared sysfs parent")
 
     def test_two_nodes_different_sysfs_parents_no_serial_both_appear(self):
         """Different sysfs parents, no serial -> two distinct cameras."""
+        # Arrange
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -466,6 +511,8 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: True},
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 2)
 
     def test_device_path_index_suffix_does_not_prevent_dedup(self):
@@ -475,7 +522,10 @@ class CameraServiceScanDeduplicationTests(TestCase):
         key was replaced with one that fell back to device_path, causing both video nodes
         to appear as separate cameras.
         """
+        # Arrange
         shared_sysfs = "/sys/bus/usb/devices/1-1/1-1:1.0"
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -498,12 +548,17 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: True},
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 1, "Cameras with -index0/-index1 device_path suffixes must not bypass dedup")
 
     # --- metadata node filtering ---
 
     def test_metadata_node_excluded_by_is_capture_check(self):
         """Metadata nodes that fail is_capture_device must be skipped entirely."""
+        # Arrange
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={
@@ -514,11 +569,16 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: True, 1: False},  # video1 is metadata-only
             cap_map={0: _make_cap(), 1: _make_cap()},
         )
+
+        # Assert
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["device_id"], 0)
 
     def test_no_cameras_when_all_nodes_fail_capture_check(self):
         """If every node fails the capture check, scan returns empty list."""
+        # Arrange
+
+        # Act
         results = self._run_scan(
             device_ids=[0, 1],
             identity_map={0: _identity(0), 1: _identity(1)},
@@ -526,6 +586,8 @@ class CameraServiceScanDeduplicationTests(TestCase):
             capture_map={0: False, 1: False},
             cap_map={},
         )
+
+        # Assert
         self.assertEqual(results, [])
 
     # --- is_capture_device fallback behaviour ---
@@ -535,17 +597,22 @@ class CameraServiceScanDeduplicationTests(TestCase):
 
         Returning False here would block all cameras when v4l2-ctl is not installed.
         """
+        # Arrange
         with (
             patch("shutil.which", return_value=None),
             patch("os.path.realpath", return_value="/dev/video0"),
             patch("os.path.basename", return_value="video0"),
             patch("os.path.isfile", return_value=False),  # no sysfs caps file
         ):
+            # Act
             result = CameraService.is_capture_device(device_id=0)
+
+        # Assert
         self.assertTrue(result, "Must return True (permissive) when v4l2-ctl absent and sysfs unreadable")
 
     def test_is_capture_device_uses_sysfs_bitmask_without_v4l2_ctl_capture_node(self):
         """Capture node: sysfs bitmask with VIDEO_CAPTURE bit set -> True."""
+        # Arrange
         with (
             patch("shutil.which", return_value=None),
             patch("os.path.realpath", return_value="/dev/video0"),
@@ -562,10 +629,12 @@ class CameraServiceScanDeduplicationTests(TestCase):
                 ),
             ),
         ):
+            # Act & Assert
             self.assertTrue(CameraService.is_capture_device(device_id=0))
 
     def test_is_capture_device_uses_sysfs_bitmask_without_v4l2_ctl_metadata_node(self):
         """Metadata node: sysfs bitmask without VIDEO_CAPTURE bit -> False."""
+        # Arrange
         with (
             patch("shutil.which", return_value=None),
             patch("os.path.realpath", return_value="/dev/video1"),
@@ -582,4 +651,5 @@ class CameraServiceScanDeduplicationTests(TestCase):
                 ),
             ),
         ):
+            # Act & Assert
             self.assertFalse(CameraService.is_capture_device(device_id=1))

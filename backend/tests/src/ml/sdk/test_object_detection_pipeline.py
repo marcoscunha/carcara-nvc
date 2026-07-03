@@ -80,27 +80,36 @@ def _make_pipeline(confidence: float = 0.5) -> tuple[ObjectDetectionPipeline, Ma
 
 class TestObjectDetectionPipelineInferOne:
     def test_returns_detection_result_type(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert isinstance(result, DetectionResult)
 
     def test_detection_count(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det(), _det(label="car", class_id=1))
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert result.count == 2
 
     def test_bbox_coordinates_preserved(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det(bbox=(5.0, 10.0, 100.0, 200.0)))
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         bbox = result.detections[0].bbox
         assert isinstance(bbox, BBox)
         assert bbox.x1 == 5.0
@@ -109,30 +118,39 @@ class TestObjectDetectionPipelineInferOne:
         assert bbox.y2 == 200.0
 
     def test_detection_fields_mapped(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det(score=0.85, label="dog", class_id=3, track_id=42))
 
+        # Act
         det: Detection = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8)).detections[0]
 
+        # Assert
         assert det.score == 0.85
         assert det.label == "dog"
         assert det.class_id == 3
         assert det.track_id == 42
 
     def test_latency_ms_is_positive(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert result.latency_ms >= 0
 
     def test_runtime_info_populated(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert result.runtime_info.runtime == "yolo"
         assert result.runtime_info.device == "cpu"
         assert result.runtime_info.dtype == "fp32"
@@ -145,6 +163,7 @@ class TestObjectDetectionPipelineInferOne:
 
 class TestConfidenceFiltering:
     def test_low_confidence_detections_filtered_out(self):
+        # Arrange
         pipe, engine = _make_pipeline(confidence=0.7)
         engine.infer.return_value = _make_raw_result(
             _det(score=0.9),  # kept
@@ -152,29 +171,37 @@ class TestConfidenceFiltering:
             _det(score=0.7),  # kept (equal to threshold)
         )
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert result.count == 2
         assert all(d.score >= 0.7 for d in result.detections)
 
     def test_per_call_confidence_override(self):
+        # Arrange
         pipe, engine = _make_pipeline(confidence=0.5)
         engine.infer.return_value = _make_raw_result(
             _det(score=0.6),  # would pass at 0.5, filtered at 0.8
             _det(score=0.9),  # passes at 0.8
         )
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8), confidence=0.8)
 
+        # Assert
         assert result.count == 1
         assert result.detections[0].score == 0.9
 
     def test_empty_detections_returns_empty_result(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result()
 
+        # Act
         result = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert result.count == 0
         assert result.detections == []
 
@@ -186,30 +213,39 @@ class TestConfidenceFiltering:
 
 class TestCallDispatch:
     def test_single_frame_returns_detection_result(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         result = pipe(np.zeros((640, 640, 3), dtype=np.uint8))
 
+        # Assert
         assert isinstance(result, DetectionResult)
 
     def test_list_of_frames_returns_batch_result(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
-
         frames = [np.zeros((640, 640, 3), dtype=np.uint8) for _ in range(3)]
+
+        # Act
         result = pipe(frames)
 
+        # Assert
         assert isinstance(result, DetectionBatchResult)
         assert len(result.items) == 3
 
     def test_tuple_of_frames_returns_batch_result(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
-
         frames = tuple(np.zeros((640, 640, 3), dtype=np.uint8) for _ in range(2))
+
+        # Act
         result = pipe(frames)
 
+        # Assert
         assert isinstance(result, DetectionBatchResult)
 
 
@@ -220,31 +256,40 @@ class TestCallDispatch:
 
 class TestBatchResult:
     def test_batch_result_total_latency_is_sum(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
-
         frames = [np.zeros((640, 640, 3), dtype=np.uint8) for _ in range(4)]
+
+        # Act
         result = pipe.batch(frames)
 
+        # Assert
         assert isinstance(result, DetectionBatchResult)
         assert result.total_latency_ms >= 0
 
     def test_batch_result_throughput_fps_is_positive(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
-
         frames = [np.zeros((640, 640, 3), dtype=np.uint8) for _ in range(2)]
+
+        # Act
         result = pipe.batch(frames)
 
+        # Assert
         assert result.throughput_fps > 0
 
     def test_batch_result_items_count(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
-
         frames = [np.zeros((640, 640, 3), dtype=np.uint8) for _ in range(5)]
+
+        # Act
         result = pipe.batch(frames)
 
+        # Assert
         assert len(result.items) == 5
 
 
@@ -255,21 +300,27 @@ class TestBatchResult:
 
 class TestToDictContract:
     def test_detection_result_to_dict_has_required_keys(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         d = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8)).to_dict()
 
+        # Assert
         assert "detections" in d
         assert "latency_ms" in d
         assert "runtime_info" in d
 
     def test_detection_to_dict_has_bbox(self):
+        # Arrange
         pipe, engine = _make_pipeline()
         engine.infer.return_value = _make_raw_result(_det())
 
+        # Act
         det_dict = pipe._infer_one(np.zeros((640, 640, 3), dtype=np.uint8)).detections[0].to_dict()
 
+        # Assert
         assert "bbox" in det_dict
         assert "score" in det_dict
         assert "label" in det_dict
@@ -282,15 +333,23 @@ class TestToDictContract:
 
 class TestInfoAndClose:
     def test_info_contains_task_and_model(self):
+        # Arrange
         pipe, engine = _make_pipeline()
+
+        # Act
         info = pipe.info()
 
+        # Assert
         assert info["task"] == "object-detection"
         assert "model" in info
         assert "runtime" in info
 
     def test_close_calls_engine_unload(self):
+        # Arrange
         pipe, engine = _make_pipeline()
+
+        # Act
         pipe.close()
 
+        # Assert
         engine.unload.assert_called_once()
