@@ -1,0 +1,537 @@
+export interface Camera {
+  id: number
+  name: string
+  rtsp_url: string | null
+  is_active: boolean
+  connectivity_status?: string
+  device_id: number
+  device_path: string | null
+  camera_type: string
+  created_at: string
+  updated_at: string
+}
+
+export interface StreamURLs {
+  rtsp: string
+  webrtc: string
+  hls: string
+  mse: string
+  mjpeg: string
+  ws: string
+  // Annotated stream (server-side AI overlay)
+  annotated_rtsp?: string
+  annotated_webrtc?: string
+  annotated_hls?: string
+  annotated_mse?: string
+  annotated_mjpeg?: string
+}
+
+export interface Stream {
+  id: number
+  camera_id: number
+  stream_name: string
+  status: string
+  current_frame: number
+  urls: StreamURLs | null
+  worker_active?: boolean
+  stream_metadata: Record<string, any>
+  detection_enabled?: boolean
+  detection_model?: string
+  detection_task_type?: string
+  detection_confidence?: number
+  detection_classes?: number[] | null
+  sync_video_predictions?: boolean
+  display_order?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StreamCreate {
+  camera_id: number
+  width?: number
+  height?: number
+  codec?: string
+  detection_enabled?: boolean
+  detection_model?: string
+  detection_task_type?: string
+  detection_confidence?: number
+  detection_classes?: number[] | null
+  sync_video_predictions?: boolean
+  stream_metadata?: Record<string, any>
+}
+
+export interface InferenceRuntimeConfig {
+  model_name: string
+  accelerator: string
+  task_type: string
+  runtime: string
+  dtype: string
+  providers: string[]
+  available_models: string[]
+  available_accelerators: string[]
+  available_runtimes: string[]
+  available_task_types: string[]
+  affected_running_workers: number
+  restarted_workers: number
+}
+
+export interface RuntimeVariant {
+  id: string
+  label: string
+  available: boolean
+  reason?: string | null
+}
+
+export interface RuntimeOption {
+  id: string
+  label: string
+  runtime_type: string
+  available: boolean
+  reason?: string | null
+  supported_devices: string[]
+  supported_dtypes: string[]
+  providers: string[]
+  variants: RuntimeVariant[]
+}
+
+export interface RuntimeCatalog {
+  options: RuntimeOption[]
+  recommended_runtime: string
+}
+
+export interface WorkerStatus {
+  stream_id: number
+  frames_processed: number
+  avg_inference_ms: number
+  fps: number
+  inference_throughput_fps: number
+  target_inference_fps: number
+  output_fps: number
+  model: string
+  accelerator: string
+  runtime: string
+  dtype: string
+  providers: string[]
+  task_type: string
+  running: boolean
+}
+
+export interface StreamInferenceMetrics {
+  stream_id: number
+  samples: number
+  avg_inference_time_ms: number
+  min_inference_time_ms: number
+  max_inference_time_ms: number
+  fps: number
+  inference_throughput_fps: number
+  target_inference_fps: number
+  output_fps: number
+  last_inference_time_ms: number
+  model_name: string | null
+  accelerator: string | null
+}
+
+export interface RealtimeInferenceMetrics {
+  global: {
+    samples: number
+    avg_inference_time_ms: number
+    min_inference_time_ms: number
+    max_inference_time_ms: number
+    fps: number
+  }
+  per_stream: Record<number, StreamInferenceMetrics>
+}
+
+export interface BenchmarkScenario {
+  scenario_name: string
+  duration_seconds: number
+  stream_count: number
+  resolution: string
+  model_name: string
+  annotation_enabled: boolean
+  notes?: string | null
+}
+
+export interface BenchmarkExportResponse {
+  run_id: string
+  json_report_path: string
+  csv_report_path: string
+  scenario_name: string
+  streams_count: number
+}
+
+export interface BenchmarkHistoryItem {
+  run_id: string
+  created_at: string | null
+  scenario_name: string
+  model_name: string | null
+  streams_count: number
+  json_report_path: string
+  csv_report_path: string
+}
+
+export interface BenchmarkHistoryResponse {
+  reports_dir: string
+  count: number
+  items: BenchmarkHistoryItem[]
+}
+
+export interface Detection {
+  id: number
+  camera_id: number
+  stream_id: number
+  frame_number: number
+  timestamp: string
+  model_name: string
+  confidence: number
+  class_name: string
+  bbox: number[]
+  metadata: Record<string, any>
+}
+
+// ============================================================================
+// Alarm V2 Types
+// ============================================================================
+
+export type TriggerType = 'class_present' | 'class_count' | 'class_absent_for' | 'zone_enter' | 'dwell'
+export type CountOp = '>=' | '>' | '==' | '<=' | '<'
+export type NotifyChannel = 'ws' | 'webhook'
+
+export interface ScheduleWindow {
+  weekdays: number[]
+  start_hour: number
+  end_hour: number
+}
+
+export interface TriggerClassPresent {
+  type: 'class_present'
+  class_names: string[]
+  min_confidence: number
+}
+
+export interface TriggerClassCount {
+  type: 'class_count'
+  class_names: string[]
+  min_confidence: number
+  count_op: CountOp
+  count_threshold: number
+}
+
+export interface TriggerClassAbsentFor {
+  type: 'class_absent_for'
+  class_names: string[]
+  min_confidence: number
+  absent_seconds: number
+}
+
+export interface TriggerZoneEnter {
+  type: 'zone_enter'
+  class_names: string[]
+  min_confidence: number
+}
+
+export interface TriggerDwell {
+  type: 'dwell'
+  class_names: string[]
+  min_confidence: number
+  dwell_seconds: number
+}
+
+export type TriggerConfig =
+  | TriggerClassPresent
+  | TriggerClassCount
+  | TriggerClassAbsentFor
+  | TriggerZoneEnter
+  | TriggerDwell
+
+export type AlarmSeverity = 'info' | 'warning' | 'critical'
+
+export interface AlarmZone {
+  id: number
+  stream_id: number
+  name: string
+  polygon: [number, number][]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AlarmZoneCreate {
+  stream_id: number
+  name: string
+  polygon: [number, number][]
+}
+
+export interface Alarm {
+  id: number
+  stream_id: number
+  name: string
+  description?: string | null
+  severity: AlarmSeverity
+  trigger_type: TriggerType
+  trigger_config: TriggerConfig
+  zone_id: number | null
+  is_active: boolean
+  store_events: boolean
+  store_snapshot: boolean
+  store_clip_seconds: number
+  min_on_seconds: number
+  min_off_seconds: number
+  cooldown_seconds: number
+  notify_channels: NotifyChannel[]
+  webhook_url?: string | null
+  schedule?: ScheduleWindow[] | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AlarmCreate {
+  stream_id: number
+  name: string
+  description?: string | null
+  severity?: AlarmSeverity
+  trigger_config: TriggerConfig
+  zone_id?: number | null
+  is_active?: boolean
+  store_events?: boolean
+  store_snapshot?: boolean
+  store_clip_seconds?: number
+  min_on_seconds?: number
+  min_off_seconds?: number
+  cooldown_seconds?: number
+  notify_channels?: NotifyChannel[]
+  webhook_url?: string | null
+  schedule?: ScheduleWindow[] | null
+}
+
+export type AlarmEventState = 'open' | 'closed' | 'acknowledged' | 'resolved'
+
+export interface AlarmEvent {
+  id: number
+  alarm_id: number
+  stream_id: number
+  zone_id: number | null
+  state: AlarmEventState
+  started_at: string
+  ended_at: string | null
+  acknowledged_at: string | null
+  matched_classes: Record<string, number> | null
+  matched_track_ids: number[] | null
+  peak_confidence: number | null
+  peak_count: number | null
+  snapshot_path: string | null
+  has_snapshot: boolean
+  clip_path: string | null
+  rule_snapshot: Record<string, unknown>
+}
+
+export interface AlarmWsPayload {
+  type: 'alarm.opened' | 'alarm.closed' | 'heartbeat'
+  alarm_id?: number
+  stream_id?: number
+  zone_id?: number | null
+  event_id?: number | null
+  timestamp?: number
+  severity?: AlarmSeverity
+  alarm_name?: string
+  matched_classes?: Record<string, number>
+  peak_confidence?: number
+  peak_count?: number
+  heartbeat?: boolean
+}
+
+export interface Model {
+  name: string
+  description: string
+  is_available: boolean
+  is_downloaded: boolean
+  is_enabled: boolean
+  task_type: string
+  confidence_threshold: number
+  storage_path?: string
+  storage_root?: string
+}
+
+export interface ModelRegistrationPayload {
+  name: string
+  task_type: string
+  description?: string
+  version?: string
+}
+
+export interface VlmStatus {
+  backend: string
+  model: string
+  ready: boolean
+}
+
+export interface VlmAnalyzeRequest {
+  stream_id?: number
+  camera_id?: number
+  image_base64?: string
+  prompt?: string
+}
+
+export interface VlmFrameEvent {
+  image_base64: string
+  width: number
+  height: number
+}
+
+export interface VlmStreamStats {
+  tokens: number
+  elapsed_s: number
+  tokens_per_second: number
+  model: string
+  backend: string
+}
+
+export interface RegionOfInterest {
+  id: number
+  name: string
+  camera_id: number
+  points: number[][]
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================================
+// Hardware Detection Types
+// ============================================================================
+
+export type CPUArchitecture = 'x86_64' | 'x86' | 'arm64' | 'armv7' | 'armv8' | 'unknown'
+
+export type PlatformVendor =
+  | 'intel'
+  | 'amd'
+  | 'nvidia_jetson'
+  | 'raspberry_pi'
+  | 'orange_pi'
+  | 'aetina'
+  | 'rock_pi'
+  | 'khadas'
+  | 'generic_arm'
+  | 'generic_x86'
+  | 'unknown'
+
+export type AcceleratorType =
+  | 'nvidia_gpu'
+  | 'nvidia_tensorrt'
+  | 'nvidia_jetson'
+  | 'google_coral_usb'
+  | 'google_coral_pcie'
+  | 'google_coral_m2'
+  | 'hailo_8'
+  | 'hailo_8l'
+  | 'hailo_10'
+  | 'intel_openvino'
+  | 'intel_movidius'
+  | 'axelera_m2'
+  | 'amd_rocm'
+  | 'cpu'
+
+export type AcceleratorStatus = 'available' | 'unavailable' | 'driver_missing' | 'not_detected' | 'error'
+
+export interface CPUInfo {
+  architecture: CPUArchitecture
+  model_name: string
+  vendor: string
+  cores: number
+  threads: number
+  max_frequency_mhz?: number
+  features: string[]
+}
+
+export interface MemoryInfo {
+  total_gb: number
+  available_gb: number
+  used_percent: number
+}
+
+export interface PlatformInfo {
+  vendor: PlatformVendor
+  board_name: string
+  board_model?: string
+  serial_number?: string
+  os_name: string
+  os_version: string
+  kernel_version: string
+  host_os_name?: string | null
+  host_os_version?: string | null
+  container_os_name?: string | null
+  container_os_version?: string | null
+  is_containerized?: boolean
+  l4t_version?: string | null
+}
+
+export interface AcceleratorInfo {
+  type: AcceleratorType
+  name: string
+  status: AcceleratorStatus
+  driver_version?: string
+  firmware_version?: string
+  memory_mb?: number
+  compute_capability?: string
+  device_path?: string
+  pcie_address?: string
+  details: Record<string, unknown>
+}
+
+export interface HardwareDetectionResult {
+  cpu: CPUInfo
+  memory: MemoryInfo
+  platform: PlatformInfo
+  accelerators: AcceleratorInfo[]
+  recommended_accelerator?: AcceleratorType
+  detection_timestamp: string
+  detection_duration_ms: number
+}
+
+// ============================================================================
+// IP Camera Discovery Types
+// ============================================================================
+
+export interface DiscoveredCamera {
+  ip: string
+  name: string | null
+  rtsp_url: string | null
+  protocol: 'mdns' | 'onvif'
+}
+
+export type DiscoveryProtocol = 'mdns' | 'onvif' | 'both'
+// ============================================================================
+// Real-time Detection Event Types (WebSocket)
+// ============================================================================
+
+export interface DetectionBox {
+  bbox: [number, number, number, number] // [x1, y1, x2, y2] in pixels
+  class_name: string
+  class_id: number
+  confidence: number
+  track_id?: number | null
+  /** COCO 17 keypoints [[x, y, conf], ...] — pose task only */
+  keypoints?: [number, number, number][]
+  /** Polygon vertices [[x, y], ...] — segment task only */
+  mask_polygon?: [number, number][]
+}
+
+export interface DetectionEvent {
+  stream_id: number
+  stream_name: string
+  timestamp: number
+  task_type: 'detect' | 'pose' | 'segment'
+  model_name: string
+  inference_time_ms: number
+  fps: number
+  detections: DetectionBox[]
+  /** Source frame width (px) used by the inference worker — bbox coords are in this space */
+  frame_width?: number
+  /** Source frame height (px) used by the inference worker — bbox coords are in this space */
+  frame_height?: number
+  /** Width (px) of the published annotated stream — reference for matching stroke/font on the client overlay */
+  publish_width?: number
+  /** Height (px) of the published annotated stream — reference for matching stroke/font on the client overlay */
+  publish_height?: number
+  /** Present only for heartbeat messages */
+  heartbeat?: boolean
+}

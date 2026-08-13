@@ -1,0 +1,410 @@
+import axios from 'axios'
+import {
+  Camera,
+  Stream,
+  StreamCreate,
+  Detection,
+  Alarm,
+  AlarmCreate,
+  AlarmZone,
+  AlarmZoneCreate,
+  AlarmEvent,
+  Model,
+  RegionOfInterest,
+  StreamURLs,
+  HardwareDetectionResult,
+  AcceleratorInfo,
+  DiscoveredCamera,
+  DiscoveryProtocol,
+  InferenceRuntimeConfig,
+  RuntimeCatalog,
+  WorkerStatus,
+  RealtimeInferenceMetrics,
+  BenchmarkScenario,
+  BenchmarkExportResponse,
+  BenchmarkHistoryResponse,
+  ModelRegistrationPayload,
+  VlmStatus,
+  VlmAnalyzeRequest,
+  VlmFrameEvent,
+  VlmStreamStats,
+} from '../types'
+import keycloak from '../auth/keycloak'
+import { AUTH_ENABLED } from '../auth/keycloak'
+import { getApiBaseUrl } from '../utils/apiUrl'
+
+const API_URL = getApiBaseUrl()
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+/**
+ * Request interceptor to add authentication token.
+ * Automatically refreshes token if it's about to expire.
+ */
+api.interceptors.request.use(
+  async (config) => {
+    if (!AUTH_ENABLED) {
+      return config
+    }
+
+    if (keycloak.authenticated && keycloak.token) {
+      // Refresh token if it expires within 30 seconds
+      try {
+        await keycloak.updateToken(30)
+      } catch (error) {
+        console.error('Token refresh failed:', error)
+        // Token refresh failed, redirect to login
+        keycloak.login()
+        return Promise.reject(new Error('Token refresh failed'))
+      }
+
+      // Add Authorization header
+      config.headers.Authorization = `Bearer ${keycloak.token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  },
+)
+
+/**
+ * Response interceptor to handle authentication errors.
+ * Redirects to login on 401 Unauthorized responses.
+ */
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!AUTH_ENABLED) {
+      return Promise.reject(error)
+    }
+
+    if (error.response?.status === 401) {
+      // Session expired or invalid token
+      console.log('Received 401, redirecting to login')
+      keycloak.login()
+    }
+    return Promise.reject(error)
+  },
+)
+
+export interface CameraInfo {
+  device_id: number
+  device_path: string
+  physical_address?: string
+  usb_id?: string
+  name: string
+  friendly_name?: string
+  resolution: [number, number]
+  fps: number
+  is_available: boolean
+  supported_resolutions: [number, number][]
+}
+
+export interface ApiResponse<T> {
+  data: T
+}
+
+// Camera endpoints
+export const cameraApi = {
+  getAll: async () => {
+    const response = await api.get<ApiResponse<Camera[]>>('/cameras/')
+    return response.data
+  },
+  get: (id: number) => api.get<Camera>(`/cameras/${id}`),
+  create: (camera: Partial<Camera>) => api.post<Camera>('/cameras/', camera),
+  update: (id: number, camera: Partial<Camera>) => api.put<Camera>(`/cameras/${id}`, camera),
+  delete: (id: number) => api.delete(`/cameras/${id}`),
+  scan: () => api.get<CameraInfo[]>('/cameras/scan'),
+}
+
+// Stream endpoints
+export const streamApi = {
+  getAll: async (status?: string) => {
+    const params = status ? { status } : {}
+    const response = await api.get<ApiResponse<Stream[]>>('/streams/', { params })
+    return response.data
+  },
+  getById: (id: number) => api.get<Stream>(`/streams/${id}`),
+  getUrls: (id: number) => api.get<StreamURLs>(`/streams/${id}/urls`),
+  create: (data: StreamCreate) => api.post<Stream>('/streams/', data),
+  update: (id: number, data: Partial<Stream>) => api.put<Stream>(`/streams/${id}`, data),
+  delete: (id: number) => api.delete(`/streams/${id}`),
+  restart: (id: number) => api.post<Stream>(`/streams/${id}/restart`),
+  reorder: (ordered_ids: number[]) => api.post<Stream[]>('/streams/reorder', { ordered_ids }),
+  getRealtimeMetrics: () => api.get<RealtimeInferenceMetrics>('/streams/metrics/realtime'),
+  getStreamMetrics: (id: number) => api.get(`/streams/${id}/metrics`),
+  getBenchmarkScenarioTemplate: () => api.get<BenchmarkScenario>('/streams/metrics/benchmark/scenario-template'),
+  exportBenchmarkMetrics: (scenario: BenchmarkScenario) =>
+    api.post<BenchmarkExportResponse>('/streams/metrics/benchmark/export', scenario),
+  getBenchmarkHistory: (limit: number = 20) =>
+    api.get<BenchmarkHistoryResponse>('/streams/metrics/benchmark/history', { params: { limit } }),
+  checkHealth: () => api.get('/streams/health/gstreamer'),
+}
+
+// Detection endpoints
+export const detectionApi = {
+  getAll: async (params?: { camera_id?: number; stream_id?: number }) => {
+    const response = await api.get<ApiResponse<Detection[]>>('/detections', { params })
+    return response.data
+  },
+  getById: (id: number) => api.get<Detection>(`/detections/${id}`),
+  create: (data: Omit<Detection, 'id' | 'timestamp'>) => api.post<Detection>('/detections', data),
+  delete: (id: number) => api.delete(`/detections/${id}`),
+}
+
+// Alarm endpoints
+export const alarmApi = {
+  getAll: async (stream_id?: number) => {
+    const params = stream_id ? { stream_id } : {}
+    const response = await api.get<ApiResponse<Alarm[]>>('/alarms', { params })
+    return response.data
+  },
+  getById: (id: number) => api.get<Alarm>(`/alarms/${id}`),
+  create: (data: AlarmCreate) => api.post<Alarm>('/alarms', data),
+  update: (id: number, data: Partial<AlarmCreate>) => api.put<Alarm>(`/alarms/${id}`, data),
+  delete: (id: number) => api.delete(`/alarms/${id}`),
+}
+
+// Alarm zone endpoints
+export const alarmZoneApi = {
+  getAll: async (stream_id: number) => {
+    const response = await api.get<ApiResponse<AlarmZone[]>>('/alarms/zones', { params: { stream_id } })
+    return response.data
+  },
+  create: (data: AlarmZoneCreate) => api.post<AlarmZone>('/alarms/zones', data),
+  delete: (id: number) => api.delete(`/alarms/zones/${id}`),
+}
+
+// Alarm event endpoints
+export const alarmEventApi = {
+  getAll: async (params?: {
+    alarm_id?: number
+    stream_id?: number
+    state?: string
+    limit?: number
+    offset?: number
+  }) => {
+    const response = await api.get<ApiResponse<AlarmEvent[]>>('/alarms/events', { params })
+    return response.data
+  },
+  getById: (id: number) => api.get<AlarmEvent>(`/alarms/events/${id}`),
+  ack: (id: number, notes?: string) => api.post<AlarmEvent>(`/alarms/events/${id}/ack`, { notes }),
+  delete: (id: number) => api.delete(`/alarms/events/${id}`),
+}
+
+// Model endpoints
+export const modelApi = {
+  getAll: async (task_type?: string) => {
+    const params = task_type ? { task_type } : {}
+    const response = await api.get<Model[] | ApiResponse<Model[]>>('/models/', { params })
+    const payload = response.data as Model[] | ApiResponse<Model[]>
+    return Array.isArray(payload) ? payload : payload.data
+  },
+  getById: (name: string) => api.get<Model>(`/models/${name}`),
+  update: (name: string, data: Partial<Model>) => api.put<Model>(`/models/${name}`, data),
+  ensure: (name: string) => api.post<{ status: string; name: string }>(`/models/${name}/ensure`),
+  delete: (name: string) =>
+    api.delete<{ name: string; removed_files: string[]; is_downloaded: boolean }>(`/models/${name}`),
+  register: (data: ModelRegistrationPayload) => api.post<Model>('/models/catalog/register', data),
+}
+
+// Vision Language Model (VLM) endpoints
+export const vlmApi = {
+  status: () => api.get<VlmStatus>('/vlm/status'),
+  analyzeStream: async (
+    data: VlmAnalyzeRequest,
+    handlers: {
+      onFrame?: (frame: VlmFrameEvent) => void
+      onStage?: (stage: string) => void
+      onToken?: (text: string) => void
+      onStats?: (stats: VlmStreamStats) => void
+      onDone?: () => void
+      onError?: (detail: string) => void
+    },
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (AUTH_ENABLED && keycloak.authenticated && keycloak.token) {
+      try {
+        await keycloak.updateToken(30)
+      } catch {
+        keycloak.login()
+        throw new Error('Token refresh failed')
+      }
+      headers.Authorization = `Bearer ${keycloak.token}`
+    }
+
+    const response = await fetch(`${API_URL}/vlm/analyze/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    })
+
+    if (!response.ok || !response.body) {
+      let detail = `Request failed (${response.status})`
+      try {
+        const body = await response.json()
+        detail = body?.detail || detail
+      } catch {
+        // ignore non-JSON error bodies
+      }
+      handlers.onError?.(detail)
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    const dispatch = (rawEvent: string) => {
+      const lines = rawEvent.split('\n')
+      let event = 'message'
+      let dataLine = ''
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) dataLine += line.slice(5).trim()
+      }
+      if (!dataLine) return
+      let payload: unknown
+      try {
+        payload = JSON.parse(dataLine)
+      } catch {
+        return
+      }
+      if (event === 'frame') handlers.onFrame?.(payload as VlmFrameEvent)
+      else if (event === 'stage') handlers.onStage?.((payload as { stage: string }).stage)
+      else if (event === 'token') handlers.onToken?.((payload as { text: string }).text)
+      else if (event === 'stats') handlers.onStats?.(payload as VlmStreamStats)
+      else if (event === 'done') handlers.onDone?.()
+      else if (event === 'error') handlers.onError?.((payload as { detail: string }).detail)
+    }
+
+    // Stream and split SSE messages on blank lines.
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, idx)
+        buffer = buffer.slice(idx + 2)
+        if (rawEvent.trim()) dispatch(rawEvent)
+      }
+    }
+    if (buffer.trim()) dispatch(buffer)
+  },
+}
+
+// Region of Interest endpoints
+export const roiApi = {
+  getAll: async (camera_id: number) => {
+    const response = await api.get<ApiResponse<RegionOfInterest[]>>('/roi', {
+      params: { camera_id },
+    })
+    return response.data
+  },
+  getById: (id: number) => api.get<RegionOfInterest>(`/roi/${id}`),
+  create: (data: Omit<RegionOfInterest, 'id' | 'created_at' | 'updated_at'>) =>
+    api.post<RegionOfInterest>('/roi', data),
+  update: (id: number, data: Partial<RegionOfInterest>) => api.put<RegionOfInterest>(`/roi/${id}`, data),
+  delete: (id: number) => api.delete(`/roi/${id}`),
+}
+
+// Hardware Detection endpoints
+export const hardwareApi = {
+  detect: async (refresh: boolean = false) => {
+    const response = await api.get<HardwareDetectionResult>('/hardware/detect', {
+      params: { refresh },
+    })
+    return response.data
+  },
+  getCpu: async () => {
+    const response = await api.get<HardwareDetectionResult['cpu']>('/hardware/cpu')
+    return response.data
+  },
+  getPlatform: async () => {
+    const response = await api.get<HardwareDetectionResult['platform']>('/hardware/platform')
+    return response.data
+  },
+  getAccelerators: async (refresh: boolean = false) => {
+    const response = await api.get<AcceleratorInfo[]>('/hardware/accelerators', {
+      params: { refresh },
+    })
+    return response.data
+  },
+  getRecommended: async () => {
+    const response = await api.get<{ recommended: string; available_accelerators: string[] }>('/hardware/recommended')
+    return response.data
+  },
+}
+
+// Discovery endpoints (IP camera scanning)
+export const discoveryApi = {
+  scanCameras: async (protocol: DiscoveryProtocol = 'mdns', timeout: number = 3.0) => {
+    const response = await api.get<DiscoveredCamera[]>('/discovery/cameras', {
+      params: { protocol, timeout },
+    })
+    return response.data
+  },
+}
+
+// Inference runtime endpoints (system-wide model + accelerator)
+export const inferenceRuntimeApi = {
+  getConfig: async () => {
+    const response = await api.get<InferenceRuntimeConfig>('/inference-runtime/')
+    return response.data
+  },
+  updateConfig: (
+    data: Partial<
+      Pick<InferenceRuntimeConfig, 'model_name' | 'accelerator' | 'task_type' | 'runtime' | 'dtype' | 'providers'>
+    > & { apply_to_running?: boolean },
+  ) => api.put<InferenceRuntimeConfig>('/inference-runtime/', data),
+}
+
+export const runtimesApi = {
+  getAll: async () => {
+    const response = await api.get<RuntimeCatalog>('/runtimes/')
+    return response.data
+  },
+  getRecommended: async () => {
+    const response = await api.get<{ recommended_runtime: string }>('/runtimes/recommended')
+    return response.data
+  },
+}
+
+export const inferenceWorkersApi = {
+  list: async () => {
+    const response = await api.get<WorkerStatus[]>('/inference-workers/')
+    return response.data
+  },
+  get: async (streamId: number) => {
+    const response = await api.get<WorkerStatus>(`/inference-workers/${streamId}`)
+    return response.data
+  },
+  start: (streamId: number) => api.post(`/inference-workers/${streamId}/start`),
+  stop: (streamId: number) => api.post(`/inference-workers/${streamId}/stop`),
+  restart: (streamId: number) => api.post(`/inference-workers/${streamId}/restart`),
+  patchConfig: (
+    streamId: number,
+    data: {
+      model_name?: string
+      task_type?: string
+      runtime?: string
+      dtype?: string
+      providers?: string[]
+      confidence?: number
+      classes?: number[]
+    },
+  ) => api.patch(`/inference-workers/${streamId}/config`, data),
+  warmup: (streamId: number, iterations: number = 3) =>
+    api.post(`/inference-workers/${streamId}/warmup`, { iterations }),
+  stopAll: () => api.post('/inference-workers/actions/stop-all'),
+  restartAll: () => api.post('/inference-workers/actions/restart-all'),
+}

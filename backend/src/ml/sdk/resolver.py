@@ -1,0 +1,358 @@
+"""
+SDK resolver - the "Auto" layer.
+
+Translates the user-visible (device, runtime, dtype) choices in PipelineConfig
+into the internal (ModelConfig, engine_class) pair that the factory understands.
+
+Resolution order
+----------------
+1. If ``device`` / ``runtime`` are explicit -> validate and use them.
+2. If either is ``"auto"`` -> infer from model file extension and HardwareDetector.
+3. Choose dtype / providers accordingly.
+
+This is intentionally a *stateless* module of pure functions so it is easy to
+unit-test the decision matrix without spinning up any hardware.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import TYPE_CHECKING
+from typing import Any
+
+from ..accelerators.detector import HardwareDetector
+from ..base import HardwareAccelerator
+from ..base import ModelConfig
+from ..base import ModelType
+from ..registry import model_registry
+from .exceptions import DeviceUnavailableError
+from .exceptions import ModelNotFoundError
+from .exceptions import RuntimeNotSupportedError
+
+if TYPE_CHECKING:
+    from .config import PipelineConfig
+
+
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------- #
+# Internal maps                                                                #
+# --------------------------------------------------------------------------- #
+
+_TASK_TO_MODEL_TYPE: dict[str, ModelType] = {
+    "object-detection": ModelType.YOLO,
+    "instance-segmentation": ModelType.YOLO,
+    "pose-estimation": ModelType.YOLO,
+    "image-text-to-text": ModelType.VLM,
+}
+
+_DEVICE_TO_ACCELERATOR: dict[str, HardwareAccelerator] = {
+    "cpu": HardwareAccelerator.CPU,
+    "cuda": HardwareAccelerator.CUDA,
+    "tensorrt": HardwareAccelerator.TENSORRT,
+    "jetson": HardwareAccelerator.JETSON,
+}
+
+_RUNTIME_REQUIRES_IMPORT: dict[str, str] = {
+    "tensorrt": "tensorrt",
+    "onnxruntime": "onnxruntime",
+    "openai_vlm": "openai",
+    "ollama_vlm": "ollama",
+    "local_vlm": "transformers",
+}
+
+_VLM_RUNTIMES: set[str] = {"openai_vlm", "ollama_vlm", "local_vlm"}
+_VISION_RUNTIMES: set[str] = {"yolo", "onnxruntime", "tensorrt"}
+_VALID_ORT_PROVIDERS: set[str] = {
+    "CPUExecutionProvider",
+    "CUDAExecutionProvider",
+    "TensorrtExecutionProvider",
+}
+
+# dtype -> ort dtype string (informational only at this layer)
+_DTYPE_ORT: dict[str, str] = {
+    "fp32": "float32",
+    "fp16": "float16",
+    "int8": "int8",
+    "auto": "float32",
+}
+
+
+# --------------------------------------------------------------------------- #
+# Public API                                                                   #
+# --------------------------------------------------------------------------- #
+
+
+class ResolvedPlan:
+    """
+    The concrete plan derived from PipelineConfig by the resolver.
+
+    Passed through to the task adapter / engine factory.
+    """
+
+    def __init__(
+        self,
+        config: PipelineConfig,
+        model_path: str,
+        model_type: ModelType,
+        accelerator: HardwareAccelerator,
+        runtime: str,
+        dtype: str,
+        providers: list[str],
+        extra: dict[str, Any],
+    ) -> None:
+        self.config = config
+        self.model_path = model_path
+        self.model_type = model_type
+        self.accelerator = accelerator
+        self.runtime = runtime
+        self.dtype = dtype
+        self.providers = providers
+        self.extra = extra
+
+    def build_model_config(self) -> ModelConfig:
+        """Build a ModelConfig for the engine factory."""
+        return ModelConfig(
+            model_path=self.model_path,
+            model_type=self.model_type,
+            model_name=self.config.model,
+            confidence_threshold=self.config.confidence,
+            iou_threshold=self.config.iou,
+            max_detections=self.config.max_detections,
+            preferred_accelerator=self.accelerator,
+            fallback_accelerators=[HardwareAccelerator.CPU],
+            options={**self.config.options, **self.extra},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "model_path": self.model_path,
+            "model_type": self.model_type.value,
+            "accelerator": self.accelerator.value,
+            "runtime": self.runtime,
+            "dtype": self.dtype,
+            "providers": self.providers,
+        }
+
+
+def resolve(config: PipelineConfig) -> ResolvedPlan:
+    """
+    Main entry point.  Returns a ResolvedPlan for the given config.
+
+    Raises
+    ------
+    ModelNotFoundError
+        When the model id / path cannot be located.
+    DeviceUnavailableError
+        When the explicitly requested device is not available.
+    RuntimeNotSupportedError
+        When the explicitly requested runtime is not installed.
+    """
+    model_path = _resolve_model_path(config.model, config.task)
+    model_type = _resolve_model_type(config.task, model_path)
+    accelerator = _resolve_accelerator(config.device)
+    runtime = _resolve_runtime(config.task, config.runtime, model_path, accelerator)
+    dtype = _resolve_dtype(config.dtype, runtime, accelerator)
+    providers = _resolve_ort_providers(runtime, accelerator, config.providers)
+
+    extra: dict[str, Any] = {}
+    if providers:
+        extra["providers"] = providers
+    if runtime in _VLM_RUNTIMES:
+        extra["vlm_backend"] = runtime.removesuffix("_vlm")
+
+    plan = ResolvedPlan(
+        config=config,
+        model_path=model_path,
+        model_type=model_type,
+        accelerator=accelerator,
+        runtime=runtime,
+        dtype=dtype,
+        providers=providers,
+        extra=extra,
+    )
+
+    logger.info(
+        "Resolved plan: model=%s type=%s device=%s runtime=%s dtype=%s",
+        model_path,
+        model_type.value,
+        accelerator.value,
+        runtime,
+        dtype,
+    )
+    return plan
+
+
+# --------------------------------------------------------------------------- #
+# Internal helpers                                                             #
+# --------------------------------------------------------------------------- #
+
+
+def _resolve_model_path(model: str, task: str) -> str:
+    """
+    Turn a model identifier into an absolute path.
+
+    Lookup order:
+    1. Existing file path (absolute or relative to cwd)
+    2. ModelRegistry by name
+    3. Raise ModelNotFoundError
+    """
+    # Direct file path
+    if os.path.isfile(model):
+        return os.path.abspath(model)
+
+    # Registry lookup
+    info = model_registry.get_model(model)
+    if info is not None and os.path.isfile(info.path):
+        return os.path.abspath(info.path)
+
+    # For YOLO family identifiers, allow logical model ids even when a local
+    # artifact is not present. Ultralytics can resolve/download known model ids
+    # like "yolov8n.pt" at runtime.
+    if info is not None and info.model_type == ModelType.YOLO:
+        return info.path
+
+    ext = os.path.splitext(model)[1].lower()
+    if ext == ".pt" and model.lower().startswith("yolo"):
+        return model
+
+    # VLM model identifiers are often logical names (e.g. llava, gpt-4o),
+    # not local files. Preserve the raw model id for the VLM engine.
+    if task == "image-text-to-text":
+        return model
+
+    raise ModelNotFoundError(model)
+
+
+def _resolve_model_type(task: str, model_path: str) -> ModelType:
+    """Determine ModelType from task and file extension."""
+    if task == "image-text-to-text":
+        return ModelType.VLM
+
+    ext = os.path.splitext(model_path)[1].lower()
+    if ext in (".engine", ".trt"):
+        return ModelType.TENSORRT
+    if ext == ".onnx":
+        return ModelType.ONNX
+    # Default YOLO for vision tasks
+    return _TASK_TO_MODEL_TYPE.get(task, ModelType.YOLO)
+
+
+def _resolve_accelerator(device: str) -> HardwareAccelerator:
+    """Map device string to HardwareAccelerator, or auto-detect."""
+    if device == "auto":
+        return HardwareDetector.get_best_accelerator()
+
+    accelerator = _DEVICE_TO_ACCELERATOR.get(device)
+    if accelerator is None:
+        raise DeviceUnavailableError(device, f"Unknown device '{device}'")
+
+    available = HardwareDetector.detect_all()
+    if not available.get(accelerator, False):
+        raise DeviceUnavailableError(
+            device,
+            f"Hardware accelerator '{device}' was not detected on this machine.",
+        )
+
+    return accelerator
+
+
+def _resolve_runtime(task: str, runtime: str, model_path: str, accelerator: HardwareAccelerator) -> str:
+    """Infer or validate the runtime string."""
+    if runtime != "auto":
+        _validate_task_runtime(task, runtime)
+        _assert_runtime_available(runtime)
+        return runtime
+
+    if task == "image-text-to-text":
+        return _resolve_vlm_runtime(model_path)
+
+    # Auto-infer from extension
+    ext = os.path.splitext(model_path)[1].lower()
+    if ext in (".engine", ".trt"):
+        return "tensorrt"
+    if ext == ".onnx":
+        return "onnxruntime"
+    if ext == ".pt":
+        return "yolo"
+
+    # Fallback by accelerator capability
+    if accelerator in (HardwareAccelerator.TENSORRT, HardwareAccelerator.JETSON):
+        return "tensorrt"
+    if accelerator == HardwareAccelerator.CUDA:
+        return "onnxruntime"
+    return "yolo"
+
+
+def _resolve_vlm_runtime(model_id: str) -> str:
+    """Auto-select VLM runtime based on model naming conventions."""
+    name = model_id.lower()
+    if "gpt" in name or "openai" in name:
+        return "openai_vlm"
+    if any(k in name for k in ["llava", "llama", "bakllava", "moondream"]):
+        return "ollama_vlm"
+    return "local_vlm"
+
+
+def _validate_task_runtime(task: str, runtime: str) -> None:
+    """Ensure runtime family matches task family."""
+    if task == "image-text-to-text" and runtime in _VISION_RUNTIMES:
+        raise RuntimeNotSupportedError(runtime, "Vision runtime cannot be used for VLM task.")
+    if task != "image-text-to-text" and runtime in _VLM_RUNTIMES:
+        raise RuntimeNotSupportedError(runtime, "VLM runtime cannot be used for vision detection task.")
+
+
+def _resolve_dtype(dtype: str, runtime: str, accelerator: HardwareAccelerator) -> str:
+    """Pick a concrete dtype if 'auto' was requested."""
+    if dtype != "auto":
+        return dtype
+
+    # fp16 is safe for CUDA and TRT
+    if accelerator in (HardwareAccelerator.CUDA, HardwareAccelerator.TENSORRT, HardwareAccelerator.JETSON):
+        return "fp16"
+    return "fp32"
+
+
+def _resolve_ort_providers(
+    runtime: str,
+    accelerator: HardwareAccelerator,
+    explicit_providers: list[str] | None = None,
+) -> list[str]:
+    """Build the ORT ExecutionProvider list when runtime is onnxruntime."""
+    if runtime != "onnxruntime":
+        return []
+
+    if explicit_providers is not None:
+        unknown = [p for p in explicit_providers if p not in _VALID_ORT_PROVIDERS]
+        if unknown:
+            raise RuntimeNotSupportedError(
+                runtime,
+                f"Unknown ONNX Runtime provider(s): {unknown}",
+            )
+        providers = list(explicit_providers)
+        if "CPUExecutionProvider" not in providers:
+            providers.append("CPUExecutionProvider")
+        return providers
+
+    providers: list[str] = []
+    if accelerator == HardwareAccelerator.TENSORRT:
+        providers.append("TensorrtExecutionProvider")
+    if accelerator in (HardwareAccelerator.CUDA, HardwareAccelerator.JETSON):
+        providers.append("CUDAExecutionProvider")
+    providers.append("CPUExecutionProvider")
+    return providers
+
+
+def _assert_runtime_available(runtime: str) -> None:
+    """Raise RuntimeNotSupportedError if a required package is missing."""
+    required = _RUNTIME_REQUIRES_IMPORT.get(runtime)
+    if required is None:
+        return
+    try:
+        __import__(required)
+    except ImportError:
+        raise RuntimeNotSupportedError(
+            runtime,
+            f"Python package '{required}' is not installed.",
+        )

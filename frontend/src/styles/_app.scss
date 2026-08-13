@@ -1,0 +1,191 @@
+/* Carcara Vision App Styles */
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Page header styling */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(72, 79, 87, 0.2);
+}
+
+.page-header__title {
+  background: linear-gradient(135deg, #f9fafb 0%, #e3d3b0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+
+.page-header__subtitle {
+  margin-top: 0.25rem;
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Card grid */
+.card-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+/* Status indicators */
+.status-active {
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-active::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.status-inactive {
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-inactive::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef4444;
+}
+
+/* Camera card specific */
+.camera-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.camera-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f5a45a 0%, #d26a27 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.camera-card:hover::before {
+  opacity: 1;
+}
+
+/* Stream preview */
+.stream-preview {
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #1a1c20 0%, #0d0e10 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.stream-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(72, 79, 87, 0.2);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, rgba(72, 79, 87, 0.1) 25%, rgba(72, 79, 87, 0.2) 50%, rgba(72, 79, 87, 0.1) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.live-indicator {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Accent gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #f5a45a 0%, #d26a27 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #9ca3af;
+}
+
+.empty-state svg {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  color: #484f57;
+}
+
+/* Transitions */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus ring for accessibility */
+.focus-ring:focus-visible {
+  outline: 2px solid #f5a45a;
+  outline-offset: 2px;
+}

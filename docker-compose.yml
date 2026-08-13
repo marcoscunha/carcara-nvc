@@ -1,0 +1,146 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-/api/v1}
+        - VITE_AUTH_ENABLED=${VITE_AUTH_ENABLED:-false}
+        - VITE_KEYCLOAK_URL=${VITE_KEYCLOAK_URL:-}
+        - VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM:-carcara}
+        - VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID:-carcara-frontend}
+        - GIT_SHA=${GIT_SHA:-unknown}
+    ports:
+      - "8221:80"
+    depends_on:
+      - backend
+
+  # GStreamer Pipeline Manager
+  gstreamer:
+    build:
+      context: ./gstreamer
+      dockerfile: Dockerfile
+    container_name: gstreamer
+    ports:
+      - "8085:8085"  # GStreamer API
+    environment:
+      - MEDIAMTX_HOST=mediamtx
+      - MEDIAMTX_RTSP_PORT=8554
+      - GSTREAMER_API_PORT=8085
+    volumes:
+      - ./gstreamer:/app
+    devices:
+      - /dev/video0:/dev/video0
+      - /dev/video1:/dev/video1
+      - /dev/video2:/dev/video2
+      - /dev/video3:/dev/video3
+      - /dev/video4:/dev/video4
+      - /dev/v4l:/dev/v4l
+      - /dev/dri:/dev/dri  # For hardware acceleration (VAAPI)
+    depends_on:
+      - mediamtx
+    privileged: true
+    restart: unless-stopped
+
+  # MediaMTX - Media server for RTSP/WebRTC/HLS
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    ports:
+      - "8554:8554"   # RTSP
+      - "8889:8889"   # WebRTC
+      - "8189:8189/udp"  # WebRTC ICE/UDP media
+      - "8189:8189/tcp"  # WebRTC ICE/TCP media
+      - "8888:8888"   # HLS
+      - "1935:1935"   # RTMP
+      - "9997:9997"   # API
+      - "9998:9998"   # Metrics
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    gpus: all
+    environment:
+      - POSTGRES_SERVER=db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=carcara_vision
+      - USE_GPU=true
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      # Authentication Feature Flag
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      # Keycloak OAuth2 Configuration
+      - KEYCLOAK_INTERNAL_URL=${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
+      - KEYCLOAK_ISSUER_URL=${KEYCLOAK_ISSUER_URL:-http://localhost:8280}
+      - KEYCLOAK_REALM=carcara
+      - KEYCLOAK_CLIENT_ID=carcara-backend
+      # Alarm snapshot storage (persisted volume)
+      - ALARM_SNAPSHOT_DIR=/app/alarm_snapshots
+    depends_on:
+      - db
+      - mediamtx
+      - gstreamer
+    devices:
+      - "/dev/video0:/dev/video0"
+      - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
+      - "/dev/video3:/dev/video3"
+      - "/dev/v4l:/dev/v4l"
+    volumes:
+      - ./backend/src:/app/src
+      - ${MODELS_VOLUME_DIR:-./models}:/app/models
+      - ${MODEL_CACHE_VOLUME_DIR:-./.model_cache}:/app/.model_cache
+      - /var/run/docker.sock:/var/run/docker.sock
+      - alarm_snapshots:/app/alarm_snapshots
+    privileged: true
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=carcara_vision
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Keycloak - Identity and Access Management
+  # Only started when the "auth" compose profile is active (controlled via
+  # COMPOSE_PROFILES in .env). Set COMPOSE_PROFILES=auth to enable.
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: keycloak
+    profiles: ["auth"]
+    command: start-dev --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HTTP_PORT=8080
+      - KC_HOSTNAME=${KC_HOSTNAME:-localhost}
+      - KC_HOSTNAME_PORT=8280
+      - KC_PROXY_HEADERS=xforwarded
+      - KC_HEALTH_ENABLED=true
+    ports:
+      - "8280:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      - keycloak_data:/opt/keycloak/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  keycloak_data:
+  alarm_snapshots:
