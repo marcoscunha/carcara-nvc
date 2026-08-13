@@ -35,6 +35,7 @@ class CameraUpdate(BaseModel):
 
 class CameraResponse(CameraBase):
     id: int
+    connectivity_status: str = "unknown"
     created_at: datetime
     updated_at: datetime
 

@@ -23,7 +23,9 @@ class Camera(Base):
     usb_product_id = Column(String, nullable=True)
     usb_serial_number = Column(String, nullable=True)
     rtsp_url = Column(String, unique=True, index=True, nullable=True)  # For RTSP cameras
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)  # User intent (manual enable/disable)
+    # Hardware connectivity, owned by the system: 'online' | 'offline' | 'unknown'.
+    connectivity_status = Column(String, nullable=False, default="unknown", server_default="unknown")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

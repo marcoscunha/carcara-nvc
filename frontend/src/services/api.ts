@@ -24,6 +24,10 @@ import {
   BenchmarkExportResponse,
   BenchmarkHistoryResponse,
   ModelRegistrationPayload,
+  VlmStatus,
+  VlmAnalyzeRequest,
+  VlmFrameEvent,
+  VlmStreamStats,
 } from '../types'
 import keycloak from '../auth/keycloak'
 import { AUTH_ENABLED } from '../auth/keycloak'
@@ -208,6 +212,94 @@ export const modelApi = {
   delete: (name: string) =>
     api.delete<{ name: string; removed_files: string[]; is_downloaded: boolean }>(`/models/${name}`),
   register: (data: ModelRegistrationPayload) => api.post<Model>('/models/catalog/register', data),
+}
+
+// Vision Language Model (VLM) endpoints
+export const vlmApi = {
+  status: () => api.get<VlmStatus>('/vlm/status'),
+  analyzeStream: async (
+    data: VlmAnalyzeRequest,
+    handlers: {
+      onFrame?: (frame: VlmFrameEvent) => void
+      onStage?: (stage: string) => void
+      onToken?: (text: string) => void
+      onStats?: (stats: VlmStreamStats) => void
+      onDone?: () => void
+      onError?: (detail: string) => void
+    },
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (AUTH_ENABLED && keycloak.authenticated && keycloak.token) {
+      try {
+        await keycloak.updateToken(30)
+      } catch {
+        keycloak.login()
+        throw new Error('Token refresh failed')
+      }
+      headers.Authorization = `Bearer ${keycloak.token}`
+    }
+
+    const response = await fetch(`${API_URL}/vlm/analyze/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    })
+
+    if (!response.ok || !response.body) {
+      let detail = `Request failed (${response.status})`
+      try {
+        const body = await response.json()
+        detail = body?.detail || detail
+      } catch {
+        // ignore non-JSON error bodies
+      }
+      handlers.onError?.(detail)
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    const dispatch = (rawEvent: string) => {
+      const lines = rawEvent.split('\n')
+      let event = 'message'
+      let dataLine = ''
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) dataLine += line.slice(5).trim()
+      }
+      if (!dataLine) return
+      let payload: unknown
+      try {
+        payload = JSON.parse(dataLine)
+      } catch {
+        return
+      }
+      if (event === 'frame') handlers.onFrame?.(payload as VlmFrameEvent)
+      else if (event === 'stage') handlers.onStage?.((payload as { stage: string }).stage)
+      else if (event === 'token') handlers.onToken?.((payload as { text: string }).text)
+      else if (event === 'stats') handlers.onStats?.(payload as VlmStreamStats)
+      else if (event === 'done') handlers.onDone?.()
+      else if (event === 'error') handlers.onError?.((payload as { detail: string }).detail)
+    }
+
+    // Stream and split SSE messages on blank lines.
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, idx)
+        buffer = buffer.slice(idx + 2)
+        if (rawEvent.trim()) dispatch(rawEvent)
+      }
+    }
+    if (buffer.trim()) dispatch(buffer)
+  },
 }
 
 // Region of Interest endpoints

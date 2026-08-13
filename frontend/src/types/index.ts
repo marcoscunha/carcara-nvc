@@ -3,6 +3,7 @@ export interface Camera {
   name: string
   rtsp_url: string | null
   is_active: boolean
+  connectivity_status?: string
   device_id: number
   device_path: string | null
   camera_type: string
@@ -356,6 +357,33 @@ export interface ModelRegistrationPayload {
   task_type: string
   description?: string
   version?: string
+}
+
+export interface VlmStatus {
+  backend: string
+  model: string
+  ready: boolean
+}
+
+export interface VlmAnalyzeRequest {
+  stream_id?: number
+  camera_id?: number
+  image_base64?: string
+  prompt?: string
+}
+
+export interface VlmFrameEvent {
+  image_base64: string
+  width: number
+  height: number
+}
+
+export interface VlmStreamStats {
+  tokens: number
+  elapsed_s: number
+  tokens_per_second: number
+  model: string
+  backend: string
 }
 
 export interface RegionOfInterest {

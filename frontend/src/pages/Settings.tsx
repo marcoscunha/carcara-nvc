@@ -13,6 +13,8 @@ import {
   Tooltip,
   LinearProgress,
   Avatar,
+  FormControlLabel,
+  Switch,
 } from '@mui/material'
 import {
   Settings as SettingsIcon,
@@ -34,6 +36,7 @@ import { useHardwareDetection, useDetectHardware } from '../hooks/useQueries'
 import { useAuth } from '../auth'
 import { AUTH_ENABLED } from '../auth/keycloak'
 import type { AcceleratorStatus, AcceleratorType } from '../types'
+import { isVlmDebugStagesEnabled, setVlmDebugStagesEnabled } from '../utils/vlmDebugStages'
 
 // Helper functions for hardware display
 const getAcceleratorIcon = (type: AcceleratorType) => {
@@ -128,6 +131,7 @@ const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? 'dev'
 const Settings: React.FC = () => {
   // Auth hook for user info
   const { user, logout, isAdmin } = useAuth()
+  const [vlmDebugStagesEnabled, setLocalVlmDebugStagesEnabled] = React.useState(() => isVlmDebugStagesEnabled())
 
   const keycloakBaseUrl =
     import.meta.env.VITE_KEYCLOAK_URL || `${window.location.protocol}//${window.location.hostname}:8280`
@@ -140,6 +144,11 @@ const Settings: React.FC = () => {
 
   const handleDetectHardware = () => {
     detectHardwareMutation.mutate(true)
+  }
+
+  const handleToggleVlmDebugStages = (enabled: boolean) => {
+    setLocalVlmDebugStagesEnabled(enabled)
+    setVlmDebugStagesEnabled(enabled)
   }
 
   return (
@@ -497,6 +506,50 @@ const Settings: React.FC = () => {
                 <Typography variant="body2" className="text-strong">
                   {APP_VERSION}
                 </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="settings-card__content">
+            <Box className="settings-card__header">
+              <Box className="settings-card__icon settings-card__icon--primary">
+                <MemoryIcon color="primary" />
+              </Box>
+              <Box>
+                <Typography variant="h6" className="settings-card__title">
+                  Developer Options
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Frontend-only debug controls for the VLM analysis dialog
+                </Typography>
+              </Box>
+            </Box>
+
+            <Divider className="settings-card__divider" />
+
+            <Box className="settings-info">
+              <Box className="settings-info__row">
+                <Box>
+                  <Typography variant="body2" className="text-strong">
+                    Show VLM debug trace
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Displays frame, stage, token, stats, and completion events in the analysis dialog.
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={vlmDebugStagesEnabled}
+                      onChange={(event) => handleToggleVlmDebugStages(event.target.checked)}
+                    />
+                  }
+                  label={vlmDebugStagesEnabled ? 'On' : 'Off'}
+                  labelPlacement="start"
+                  sx={{ ml: 0, mr: 0, gap: 1 }}
+                />
               </Box>
             </Box>
           </CardContent>

@@ -157,6 +157,34 @@ class CameraServiceIdentityResolutionTests(TestCase):
         self.assertEqual(resolved["device_id"], 4)
         self.assertEqual(resolved["device_path"], "/dev/v4l/by-id/usb-cam-b-video-index0")
 
+    def test_resolve_local_camera_does_not_steal_device_when_stable_identity_absent(self):
+        # A camera with a stable USB serial whose hardware is unplugged must NOT
+        # rebind to the only remaining (different) device — that caused the
+        # "swap" where one camera displayed another camera's feed.
+        scanned_cameras = [
+            {
+                "device_id": 0,
+                "device_path": "/dev/v4l/by-id/usb-other-cam-video-index0",
+                "physical_address": "pci-0000:00:14.0-usb-0:9:1.0",
+                "usb_vendor_id": "046d",
+                "usb_product_id": "0825",
+                "usb_serial_number": "PRESENT-SERIAL",
+                "usb_id": "046d:0825",
+            },
+        ]
+
+        with (
+            patch.object(CameraService, "describe_local_device", return_value=None),
+            patch.object(CameraService, "scan_local_camera_identities", return_value=scanned_cameras),
+        ):
+            # Act — the requested camera's serial is absent from the scan.
+            resolved = CameraService.resolve_local_camera(
+                usb_serial_number="MISSING-SERIAL",
+            )
+
+        # Assert
+        self.assertIsNone(resolved)
+
 
 # ---------------------------------------------------------------------------
 # scan_local_cameras - deduplication regression tests

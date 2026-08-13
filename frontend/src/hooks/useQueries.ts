@@ -13,6 +13,7 @@ import {
   inferenceRuntimeApi,
   runtimesApi,
   inferenceWorkersApi,
+  vlmApi,
 } from '../services/api'
 import {
   Camera,
@@ -471,6 +472,13 @@ export const useRegisterModel = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.models.all })
     },
+  })
+}
+
+export const useVlmStatus = () => {
+  return useQuery({
+    queryKey: ['vlm', 'status'],
+    queryFn: () => vlmApi.status().then((res) => res.data),
   })
 }
 

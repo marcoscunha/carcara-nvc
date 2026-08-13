@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ...api.models.camera import CameraCreate
@@ -38,11 +39,45 @@ def _local_camera_payload_from_resolution(
     return payload
 
 
-def _resolve_local_camera_payload(camera_data: dict, existing_camera: Camera | None = None) -> dict:
+def _device_owned_by_other_camera(db: Session, resolved: dict | None, exclude_camera_id: int | None = None) -> bool:
+    """True if the resolved device already belongs to a different local camera.
+
+    Prevents two cameras from being bound to the same physical device, which
+    otherwise makes editing one camera silently rebind onto another's device.
+    """
+    if not resolved:
+        return False
+
+    device_path = resolved.get("device_path")
+    serial = resolved.get("usb_serial_number")
+    conditions = []
+    if device_path:
+        conditions.append(Camera.device_path == device_path)
+    if serial:
+        conditions.append(Camera.usb_serial_number == serial)
+    if not conditions:
+        return False
+
+    query = db.query(Camera).filter(Camera.camera_type.in_(LOCAL_CAMERA_TYPES), or_(*conditions))
+    if exclude_camera_id is not None:
+        query = query.filter(Camera.id != exclude_camera_id)
+    return db.query(query.exists()).scalar()
+
+
+def _resolve_local_camera_payload(
+    camera_data: dict,
+    existing_camera: Camera | None = None,
+    db: Session | None = None,
+) -> dict:
     merged_identity = {
         field: camera_data.get(field, getattr(existing_camera, field, None)) for field in LOCAL_CAMERA_IDENTITY_FIELDS
     }
     resolved = CameraService.resolve_local_camera(**merged_identity)
+    # Never rebind this camera onto a device that another camera already owns.
+    if db is not None and _device_owned_by_other_camera(
+        db, resolved, exclude_camera_id=getattr(existing_camera, "id", None)
+    ):
+        resolved = None
     return _local_camera_payload_from_resolution(resolved, fallback=merged_identity)
 
 
@@ -55,7 +90,10 @@ def create_camera(
     """Create a new camera. Requires authentication."""
     camera_data = camera.model_dump()
     if camera.camera_type in LOCAL_CAMERA_TYPES:
-        camera_data.update(_resolve_local_camera_payload(camera_data))
+        merged_identity = {field: camera_data.get(field) for field in LOCAL_CAMERA_IDENTITY_FIELDS}
+        if _device_owned_by_other_camera(db, merged_identity):
+            raise HTTPException(status_code=409, detail="This device is already registered to another camera")
+        camera_data.update(_resolve_local_camera_payload(camera_data, db=db))
     else:
         for field in LOCAL_CAMERA_IDENTITY_FIELDS:
             camera_data[field] = None
@@ -166,6 +204,7 @@ async def update_camera(
 ):
     """Update a camera's information. Requires authentication."""
     from ...models.stream import Stream
+    from ...services.camera_connectivity import close_open_alarm_events_for_camera
     from ...services.gstreamer import gstreamer_service
     from ...services.inference_worker_manager import inference_worker_manager
     from .streams import recover_streams_for_camera
@@ -178,7 +217,7 @@ async def update_camera(
     target_camera_type = update_data.get("camera_type", db_camera.camera_type)
 
     if target_camera_type in LOCAL_CAMERA_TYPES:
-        update_data.update(_resolve_local_camera_payload(update_data, existing_camera=db_camera))
+        update_data.update(_resolve_local_camera_payload(update_data, existing_camera=db_camera, db=db))
     elif "camera_type" in update_data:
         for field in LOCAL_CAMERA_IDENTITY_FIELDS:
             update_data[field] = None
@@ -203,6 +242,9 @@ async def update_camera(
                     print(f"Warning: Failed to remove stream {stream.stream_name} from GStreamer: {e}")
             inference_worker_manager.stop_worker(stream.id)
             stream.status = "offline"
+        # Disable alarms for a deactivated camera by closing any open events.
+        # Alarm.is_active (user intent) is left untouched.
+        close_open_alarm_events_for_camera(db, camera_id)
 
     db.commit()
     db.refresh(db_camera)

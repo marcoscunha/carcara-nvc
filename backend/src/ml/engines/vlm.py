@@ -11,12 +11,16 @@ import base64
 import logging
 import time
 from abc import abstractmethod
+from collections.abc import Iterator
 from typing import Any
 
 import cv2
 import numpy as np
 
-from ..base import BaseInferenceEngine, HardwareAccelerator, InferenceResult, ModelConfig
+from ..base import BaseInferenceEngine
+from ..base import HardwareAccelerator
+from ..base import InferenceResult
+from ..base import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +105,34 @@ class VLMEngine(BaseInferenceEngine):
             result.add_detection(**det)
 
         return result
+
+    def stream_query(self, image: np.ndarray, prompt: str | None = None, **kwargs) -> Iterator[tuple[str, Any]]:
+        """Yield incremental output as ``("token", text)`` then a final ``("stats", {...})``.
+
+        The default implementation runs the blocking :meth:`query` and emits the
+        whole answer as a single chunk; subclasses may override for real
+        token-by-token streaming.
+        """
+        if not self._is_loaded:
+            raise RuntimeError("Model not loaded. Call load() first.")
+
+        query_prompt = prompt or self.config.vlm_prompt
+        yield ("stage", "processing")
+        yield ("stage", "generating")
+        start = time.perf_counter()
+        text = self.query(image, query_prompt, **kwargs)
+        elapsed = time.perf_counter() - start
+        if text:
+            yield ("token", text)
+        tokens = max(1, len(text.split()))
+        yield (
+            "stats",
+            {
+                "tokens": tokens,
+                "elapsed_s": round(elapsed, 3),
+                "tokens_per_second": round(tokens / elapsed, 2) if elapsed > 0 else 0.0,
+            },
+        )
 
     def _parse_detections(self, response: str) -> list[dict[str, Any]]:
         """
@@ -332,7 +364,8 @@ class LocalVLMEngine(VLMEngine):
         """Load local VLM using transformers."""
         try:
             import torch
-            from transformers import AutoModelForVision2Seq, AutoProcessor
+            from transformers import AutoModelForVision2Seq
+            from transformers import AutoProcessor
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -394,26 +427,113 @@ class LocalVLMEngine(VLMEngine):
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         pil_image = Image.fromarray(rgb_image)
 
-        # Process inputs
-        inputs = self._processor(text=prompt, images=pil_image, return_tensors="pt")
+        # Build a chat-templated prompt so the processor inserts the image
+        # placeholder token; without it the image/text counts mismatch.
+        text_prompt = prompt or "Describe this image."
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": text_prompt},
+                ],
+            }
+        ]
+        prompt_text = self._processor.apply_chat_template(messages, add_generation_prompt=True)
+
+        inputs = self._processor(text=prompt_text, images=[pil_image], return_tensors="pt")
 
         # Move to device
         device = next(self._model.parameters()).device
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
+        gen_kwargs: dict[str, Any] = {"max_new_tokens": self.config.vlm_max_tokens}
+        if self.config.vlm_temperature and self.config.vlm_temperature > 0:
+            gen_kwargs["do_sample"] = True
+            gen_kwargs["temperature"] = self.config.vlm_temperature
+        else:
+            gen_kwargs["do_sample"] = False
+
         # Generate
         with torch.no_grad():
-            outputs = self._model.generate(
-                **inputs,
-                max_new_tokens=self.config.vlm_max_tokens,
-                temperature=self.config.vlm_temperature,
-                do_sample=self.config.vlm_temperature > 0,
-            )
+            outputs = self._model.generate(**inputs, **gen_kwargs)
 
-        # Decode
-        response = self._processor.decode(outputs[0], skip_special_tokens=True)
+        # Decode only the newly generated tokens, dropping the prompt echo.
+        prompt_len = inputs["input_ids"].shape[1]
+        generated = outputs[0][prompt_len:]
+        response = self._processor.decode(generated, skip_special_tokens=True)
 
-        return response
-        response = self._processor.decode(outputs[0], skip_special_tokens=True)
+        return response.strip()
 
-        return response
+    def stream_query(self, image: np.ndarray, prompt: str | None = None, **kwargs) -> Iterator[tuple[str, Any]]:
+        """Stream the VLM response token-by-token, ending with generation stats."""
+        if not self._is_loaded:
+            raise RuntimeError("Model not loaded")
+
+        from threading import Thread
+
+        from PIL import Image
+        from transformers import TextIteratorStreamer
+
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(rgb_image)
+
+        text_prompt = prompt or "Describe this image."
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": text_prompt},
+                ],
+            }
+        ]
+        yield ("stage", "processing")
+        prompt_text = self._processor.apply_chat_template(messages, add_generation_prompt=True)
+
+        inputs = self._processor(text=prompt_text, images=[pil_image], return_tensors="pt")
+        device = next(self._model.parameters()).device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        streamer = TextIteratorStreamer(self._processor.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        gen_kwargs: dict[str, Any] = dict(inputs)
+        gen_kwargs["streamer"] = streamer
+        gen_kwargs["max_new_tokens"] = self.config.vlm_max_tokens
+        if self.config.vlm_temperature and self.config.vlm_temperature > 0:
+            gen_kwargs["do_sample"] = True
+            gen_kwargs["temperature"] = self.config.vlm_temperature
+        else:
+            gen_kwargs["do_sample"] = False
+
+        thread = Thread(target=self._model.generate, kwargs=gen_kwargs)
+        start = time.perf_counter()
+        first_token_at: float | None = None
+        yield ("stage", "generating")
+        thread.start()
+
+        pieces: list[str] = []
+        for text in streamer:
+            if not text:
+                continue
+            if first_token_at is None:
+                first_token_at = time.perf_counter()
+            pieces.append(text)
+            yield ("token", text)
+
+        thread.join()
+
+        elapsed = time.perf_counter() - (first_token_at or start)
+        full = "".join(pieces).strip()
+        try:
+            token_count = len(self._processor.tokenizer.encode(full))
+        except Exception:
+            token_count = max(1, len(full.split()))
+
+        yield (
+            "stats",
+            {
+                "tokens": token_count,
+                "elapsed_s": round(elapsed, 3),
+                "tokens_per_second": round(token_count / elapsed, 2) if elapsed > 0 else 0.0,
+            },
+        )

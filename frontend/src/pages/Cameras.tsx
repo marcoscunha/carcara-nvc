@@ -171,13 +171,20 @@ const Cameras: React.FC = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        icon={<CircleIcon className="chip-icon--tiny" />}
-                        label={camera.is_active ? 'Active' : 'Inactive'}
-                        size="small"
-                        color={camera.is_active ? 'success' : 'error'}
-                        className={`status-chip ${camera.is_active ? 'status-chip--active' : ''}`}
-                      />
+                      {(() => {
+                        const offline = camera.is_active && camera.connectivity_status === 'offline'
+                        const label = !camera.is_active ? 'Inactive' : offline ? 'Offline' : 'Active'
+                        const color = !camera.is_active ? 'error' : offline ? 'warning' : 'success'
+                        return (
+                          <Chip
+                            icon={<CircleIcon className="chip-icon--tiny" />}
+                            label={label}
+                            size="small"
+                            color={color}
+                            className={`status-chip ${label === 'Active' ? 'status-chip--active' : ''}`}
+                          />
+                        )
+                      })()}
                     </TableCell>
                     <TableCell align="right">
                       <IconButton

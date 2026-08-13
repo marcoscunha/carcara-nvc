@@ -466,6 +466,7 @@ async def _recover_reconnected_local_streams(db: Session) -> tuple[int, int]:
 
     recovered = 0
     failed = 0
+    deactivated = 0
     failed_stream_ids: list[int] = []
 
     for stream in candidates:
@@ -478,6 +479,17 @@ async def _recover_reconnected_local_streams(db: Session) -> tuple[int, int]:
         camera = db.query(Camera).filter(Camera.id == stream.camera_id).first()
         if camera is None:
             continue
+
+        # Never resurrect a local stream whose physical device is absent: doing
+        # so would rebind to a stale/fallback node and show a dead (or the wrong)
+        # feed. Keep it offline until the hardware actually returns.
+        if camera.camera_type in LOCAL_CAMERA_TYPES:
+            identity = _local_camera_identity(camera, (stream.stream_metadata or {}).get("source_config"))
+            if camera_service.resolve_local_camera(**identity) is None:
+                if stream.status != "offline":
+                    stream.status = "offline"
+                    deactivated += 1
+                continue
 
         metadata = dict(stream.stream_metadata or {})
         previous_source_config = metadata.get("source_config") or {}
@@ -527,7 +539,7 @@ async def _recover_reconnected_local_streams(db: Session) -> tuple[int, int]:
             failed_stream_ids.append(stream.id)
             logger.exception("Error recovering local stream %s: %s", stream.id, exc)
 
-    if recovered or failed:
+    if recovered or failed or deactivated:
         db.commit()
 
     if failed and settings.GSTREAMER_AUTO_RECREATE:

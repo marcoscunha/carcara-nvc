@@ -39,6 +39,7 @@ import {
   SwapVert as SwapVertIcon,
   Check as CheckIcon,
   WarningAmber as WarningAmberIcon,
+  AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
 import {
   useStreams,
@@ -53,6 +54,7 @@ import {
 } from '../hooks/useQueries'
 import { Stream, Camera, StreamInferenceMetrics, Model } from '../types'
 import CameraStream, { CameraStreamStatsSnapshot } from '../components/CameraStream'
+import { VlmAnalyzeDialog } from '../components/dialogs'
 
 const inferTaskTypeFromModel = (modelName: string): string => {
   const lower = modelName.toLowerCase()
@@ -137,6 +139,9 @@ const Streams: React.FC = () => {
     stream_metadata: {},
   })
   const [streamPreviewStats, setStreamPreviewStats] = useState<Record<number, CameraStreamStatsSnapshot>>({})
+  const [vlmDialogOpen, setVlmDialogOpen] = useState(false)
+  const [streamToAnalyze, setStreamToAnalyze] = useState<Stream | null>(null)
+  const [analyzeStreamName, setAnalyzeStreamName] = useState<string | undefined>(undefined)
 
   // TanStack Query hooks for server state management
   const {
@@ -392,6 +397,17 @@ const Streams: React.FC = () => {
     setStreamPreviewStats((prev) => ({ ...prev, [streamId]: stats }))
   }
 
+  const handleOpenVlmDialog = (stream: Stream, camera: Camera | undefined) => {
+    setStreamToAnalyze(stream)
+    setAnalyzeStreamName(camera?.name || stream.stream_name)
+    setVlmDialogOpen(true)
+  }
+
+  const handleCloseVlmDialog = () => {
+    setVlmDialogOpen(false)
+    setStreamToAnalyze(null)
+    setAnalyzeStreamName(undefined)
+  }
   const getStatusColor = (status: string): ChipProps['color'] => {
     switch (status) {
       case 'running':
@@ -509,6 +525,9 @@ const Streams: React.FC = () => {
                 typeof stream.sync_video_predictions === 'boolean'
                   ? stream.sync_video_predictions
                   : Boolean(stream.stream_metadata?.sync_video_predictions)
+              const cameraInactive = Boolean(camera && !camera.is_active)
+              const cameraOffline = Boolean(camera?.is_active && camera.connectivity_status === 'offline')
+              const cameraStateLabel = cameraInactive ? 'Camera inactive' : cameraOffline ? 'Camera offline' : null
               return (
                 <Card
                   key={stream.id}
@@ -546,6 +565,15 @@ const Streams: React.FC = () => {
                           color={getStatusColor(stream.status)}
                           className={`status-chip chip-capitalize ${stream.status === 'running' ? 'status-chip--active' : ''}`}
                         />
+                        {cameraStateLabel && (
+                          <Chip
+                            icon={<CircleIcon className="chip-icon--tiny" />}
+                            label={cameraStateLabel}
+                            size="small"
+                            variant="outlined"
+                            color={cameraInactive ? 'error' : 'warning'}
+                          />
+                        )}
                         {hasModelMismatch && (
                           <Tooltip title="Configured model is unavailable locally. Video remains visible but AI is paused.">
                             <Chip
@@ -717,6 +745,18 @@ const Streams: React.FC = () => {
 
                     {/* Actions */}
                     <Box className="card-actions">
+                      <Tooltip title="Analyze the current frame with the VLM.">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenVlmDialog(stream, camera)}
+                            className="icon-button--primary"
+                            disabled={reorderMode}
+                          >
+                            <AutoAwesomeIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                       <Tooltip title="Edit stream settings.">
                         <span>
                           <IconButton
@@ -906,6 +946,13 @@ const Streams: React.FC = () => {
           </DialogActions>
         </form>
       </Dialog>
+
+      <VlmAnalyzeDialog
+        open={vlmDialogOpen}
+        onClose={handleCloseVlmDialog}
+        stream={streamToAnalyze}
+        streamName={analyzeStreamName}
+      />
     </Box>
   )
 }

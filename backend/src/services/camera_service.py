@@ -228,6 +228,15 @@ class CameraService:
             if direct_candidate and not has_stable_identity:
                 return direct_candidate
 
+            # Recovery heuristics below rebind a camera to a *different* device
+            # than the one it stored. That is only safe for cameras created
+            # without any stable USB identity — a camera that DOES carry a
+            # serial/physical/vendor identity but matched nothing means its real
+            # hardware is absent, so we must NOT steal another camera's device
+            # (doing so causes the "swap" where one camera shows another's feed).
+            if has_stable_identity:
+                return None
+
             # Recovery heuristic for cameras created without stable USB identity:
             # if there is only one active local camera, rebind to it.
             if len(candidates) == 1:

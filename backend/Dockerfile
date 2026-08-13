@@ -14,7 +14,7 @@ COPY pyproject.toml uv.lock* ./
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /app/.venv && \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project --extra vlm
 
 # Copy application code
 COPY . .

@@ -53,8 +53,8 @@ cuda = ["onnxruntime-gpu"]
 # TensorRT optimization
 tensorrt = ["tensorrt>=10.14.0", "pycuda>=2026.1"]
 
-# VLM capabilities
-vlm = ["ollama>=0.6.1", "openai>=2.15.0", "transformers>=4.57.6"]
+# VLM capabilities (local SmolVLM via transformers)
+vlm = ["transformers>=4.57.6"]
 
 # Edge deployment (Raspberry Pi, Coral TPU) - requires Python <=3.11
 # tflite-runtime does not support Python 3.13 yet

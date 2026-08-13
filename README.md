@@ -25,7 +25,18 @@ Carcara Vision is a hardware-accelerated ML inference platform that enables data
 - 📹 **Flexible streaming** — GStreamer pipelines with MediaMTX (RTSP/WebRTC/HLS)
 - 📷 **Smart camera discovery** — Persistent V4L2 device paths that survive reboots
 
-## 📖 Documentation
+## � Current Release Focus
+
+Carcara Vision is preparing its first public MVP release, v0.1.0, focused on:
+
+- local camera support
+- official pretrained YOLOv8/YOLO11 models only
+- lightweight local VLM support such as SmolVLM
+- initial deployment guidance for Jetson and Raspberry Pi 5 CPU-only systems
+
+This release is intended for developers, early adopters, and local/home deployments rather than large production installations.
+
+## �📖 Documentation
 
 | Topic                     | Link                                                   |
 | ------------------------- | ------------------------------------------------------ |

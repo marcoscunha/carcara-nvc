@@ -21,6 +21,7 @@ from .api.endpoints import models
 from .api.endpoints import roi as roi_endpoints
 from .api.endpoints import runtimes
 from .api.endpoints import streams
+from .api.endpoints import vlm
 from .api.endpoints import ws_alarms
 from .api.endpoints import ws_detections
 from .core.config import settings
@@ -182,6 +183,7 @@ app.include_router(
     inference_runtime.router, prefix=f"{settings.API_V1_STR}/inference-runtime", tags=["inference-runtime"]
 )
 app.include_router(runtimes.router, prefix=f"{settings.API_V1_STR}/runtimes", tags=["runtimes"])
+app.include_router(vlm.router, prefix=f"{settings.API_V1_STR}/vlm", tags=["vlm"])
 app.include_router(
     inference_workers.router,
     prefix=f"{settings.API_V1_STR}/inference-workers",

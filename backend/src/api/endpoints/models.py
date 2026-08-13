@@ -16,11 +16,12 @@ from fastapi import Query
 from pydantic import BaseModel
 from pydantic import Field
 
+from ...core.config import settings
 from ...services.models import ensure_model_available
 from ...services.models import get_available_models
 from ...services.models import get_model_by_name
-from ...services.models import remove_model_artifacts
 from ...services.models import register_yolo_model
+from ...services.models import remove_model_artifacts
 from ...services.models import update_model_state
 
 router = APIRouter()
@@ -82,6 +83,11 @@ def update_model(name: str, payload: UpdateModelRequest):
 @router.post("/catalog/register", response_model=dict[str, Any], status_code=201)
 def register_model(payload: RegisterModelRequest):
     """Register a custom model entry so it appears in the Settings model catalog."""
+    if not settings.ALLOW_CUSTOM_MODELS:
+        raise HTTPException(
+            status_code=403,
+            detail="Custom model registration is disabled. Set ALLOW_CUSTOM_MODELS=true to enable it.",
+        )
     try:
         return register_yolo_model(
             payload.name,

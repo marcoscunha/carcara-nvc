@@ -41,6 +41,17 @@ class Settings(BaseSettings):
         "yolov8x",
     ]
 
+    # Allow registering custom (non-catalog) models. Disabled for the v0.1.0 release.
+    ALLOW_CUSTOM_MODELS: bool = _env_bool("ALLOW_CUSTOM_MODELS", False)
+
+    # Vision Language Model (VLM) defaults
+    VLM_ENABLED: bool = _env_bool("VLM_ENABLED", False)
+    VLM_BACKEND: str = os.getenv("VLM_BACKEND", "local")  # local, ollama, openai
+    VLM_MODEL: str = os.getenv("VLM_MODEL", "HuggingFaceTB/SmolVLM-500M-Instruct")
+    VLM_MAX_TOKENS: int = int(os.getenv("VLM_MAX_TOKENS", "512"))
+    VLM_TEMPERATURE: float = float(os.getenv("VLM_TEMPERATURE", "0.7"))
+    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
     # Hardware Acceleration
     CUDA_VISIBLE_DEVICES: str | None = os.getenv("CUDA_VISIBLE_DEVICES", None)
     USE_GPU: bool = os.getenv("USE_GPU", "False").lower() == "true"
