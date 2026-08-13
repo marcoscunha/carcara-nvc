@@ -73,8 +73,8 @@ storybook-static/
 docker-compose.override.yml
 
 # ML model artifacts (local persistent volumes)
-models/
-.model_cache/
+/models/
+/.model_cache/
 
 # Database
 *.sqlite3
